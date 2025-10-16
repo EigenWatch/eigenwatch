@@ -19,6 +19,7 @@ import {
   SortOrder,
 } from 'src/common/types/risk.types';
 
+// TODO: Update api responses to have status, data/error, and message fields.
 @Injectable()
 export class OperatorRiskService {
   constructor(private readonly logger: LoggerService) {}
