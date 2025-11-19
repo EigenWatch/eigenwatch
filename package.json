@@ -1,8 +1,8 @@
 {
-  "name": "nest-typescript-starter",
+  "name": "eigenwatch-analytics-api",
+  "description": "EigenWatch Analytics API",
   "private": true,
   "version": "1.0.0",
-  "description": "Nest TypeScript starter repository",
   "license": "MIT",
   "scripts": {
     "build": "nest build",

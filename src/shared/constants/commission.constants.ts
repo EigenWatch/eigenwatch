@@ -1,0 +1,6 @@
+export const COMMISSION_CONSTANTS = {
+  BIPS_DIVISOR: 10000,
+  MAX_BIPS: 10000,
+  MIN_BIPS: 0,
+  DEFAULT_DELAY_SECONDS: 60 * 60 * 24 * 21, // 21 days
+} as const;
