@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable, Logger } from "@nestjs/common";
 import { createClient, RedisClientType } from "redis";
 import { AppConfigService } from "../config/config.service";
@@ -45,7 +46,11 @@ export class CacheService {
 
     try {
       const value = await this.client.get(key);
-      return value ? JSON.parse(value) : null;
+      if (!value) return null;
+      if (typeof value === "string") {
+        return JSON.parse(value) as T;
+      }
+      return value as unknown as T;
     } catch (error) {
       this.logger.error(`Failed to get key: ${key}`, error);
       return null;
