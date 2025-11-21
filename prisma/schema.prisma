@@ -1,0 +1,760 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model alembic_version {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+}
+
+model avs {
+  id                                  String                                @id @db.VarChar
+  address                             String                                @unique @db.VarChar
+  created_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  operator_avs_allocation_summary     operator_avs_allocation_summary[]
+  operator_avs_registration_history   operator_avs_registration_history[]
+  operator_avs_relationship_snapshots operator_avs_relationship_snapshots[]
+  operator_avs_relationships          operator_avs_relationships[]
+  operator_commission_history         operator_commission_history[]
+  operator_commission_rates           operator_commission_rates[]
+  operator_commission_rates_snapshots operator_commission_rates_snapshots[]
+  operator_sets                       operator_sets[]
+}
+
+model concentration_metrics {
+  id                       Int        @id @default(autoincrement())
+  entity_type              String     @db.VarChar
+  entity_id                String     @db.VarChar
+  date                     DateTime   @db.Date
+  concentration_type       String     @db.VarChar
+  hhi_value                Decimal?   @db.Decimal
+  gini_coefficient         Decimal?   @db.Decimal
+  coefficient_of_variation Decimal?   @db.Decimal
+  top_1_percentage         Decimal?   @db.Decimal
+  top_5_percentage         Decimal?   @db.Decimal
+  top_10_percentage        Decimal?   @db.Decimal
+  total_entities           Int?
+  effective_entities       Decimal?   @db.Decimal
+  total_amount             Decimal?   @db.Decimal
+  operator_id              String?    @db.VarChar
+  operators                operators? @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([entity_type, entity_id, date, concentration_type], map: "uix_concentration_metrics")
+  @@index([entity_type, entity_id, date], map: "idx_concentration_entity")
+  @@index([concentration_type], map: "ix_concentration_metrics_concentration_type")
+  @@index([date], map: "ix_concentration_metrics_date")
+  @@index([entity_id], map: "ix_concentration_metrics_entity_id")
+  @@index([entity_type], map: "ix_concentration_metrics_entity_type")
+}
+
+model network_daily_aggregates {
+  id                             Int      @id @default(autoincrement())
+  snapshot_date                  DateTime @unique(map: "ix_network_daily_aggregates_snapshot_date") @db.Date
+  snapshot_block                 Int
+  total_operators                Int?
+  active_operators               Int?
+  total_tvs                      Decimal? @db.Decimal
+  mean_tvs                       Decimal? @db.Decimal
+  median_tvs                     Decimal? @db.Decimal
+  p25_tvs                        Decimal? @db.Decimal
+  p75_tvs                        Decimal? @db.Decimal
+  p90_tvs                        Decimal? @db.Decimal
+  total_delegators               Int?
+  mean_delegators_per_operator   Decimal? @db.Decimal
+  median_delegators_per_operator Decimal? @db.Decimal
+  mean_avs_per_operator          Decimal? @db.Decimal
+  median_avs_per_operator        Decimal? @db.Decimal
+  mean_pi_commission_bips        Decimal? @db.Decimal
+  median_pi_commission_bips      Decimal? @db.Decimal
+
+  @@index([snapshot_date], map: "idx_network_agg_date")
+}
+
+model operator_allocation_snapshots {
+  id              Int           @id @default(autoincrement())
+  operator_id     String        @db.VarChar
+  operator_set_id String        @db.VarChar
+  strategy_id     String        @db.VarChar
+  snapshot_date   DateTime      @db.Date
+  snapshot_block  Int
+  magnitude       Decimal       @db.Decimal
+  operators       operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets   operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies      strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, operator_set_id, strategy_id, snapshot_date], map: "operator_allocation_snapshots_unique")
+  @@index([operator_id, snapshot_date], map: "idx_allocation_snap_operator_date")
+  @@index([operator_set_id, snapshot_date], map: "idx_allocation_snap_operator_set_date")
+  @@index([strategy_id, snapshot_date], map: "idx_allocation_snap_strategy_date")
+  @@index([operator_id], map: "ix_operator_allocation_snapshots_operator_id")
+  @@index([operator_set_id], map: "ix_operator_allocation_snapshots_operator_set_id")
+  @@index([snapshot_date], map: "ix_operator_allocation_snapshots_snapshot_date")
+  @@index([strategy_id], map: "ix_operator_allocation_snapshots_strategy_id")
+}
+
+model operator_allocations {
+  id                 String        @id @db.VarChar
+  operator_id        String        @db.VarChar
+  operator_set_id    String        @db.VarChar
+  strategy_id        String        @db.VarChar
+  magnitude          Decimal       @db.Decimal
+  effect_block       Int
+  allocated_at       DateTime      @db.Timestamp(6)
+  allocated_at_block Int
+  created_at         DateTime      @default(now()) @db.Timestamp(6)
+  updated_at         DateTime      @default(now()) @db.Timestamp(6)
+  operators          operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets      operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies         strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([effect_block], map: "idx_allocation_effect")
+  @@index([operator_id], map: "idx_allocation_operator")
+  @@index([operator_id, operator_set_id], map: "idx_allocation_operator_avs")
+  @@index([operator_id], map: "ix_operator_allocations_operator_id")
+  @@index([operator_set_id], map: "ix_operator_allocations_operator_set_id")
+  @@index([strategy_id], map: "ix_operator_allocations_strategy_id")
+}
+
+model operator_analytics {
+  id                              Int       @id @default(autoincrement())
+  operator_id                     String    @db.VarChar
+  date                            DateTime  @db.Date
+  risk_score                      Decimal   @db.Decimal
+  confidence_score                Decimal   @db.Decimal
+  risk_level                      String    @db.VarChar(10)
+  performance_score               Decimal?  @db.Decimal
+  economic_score                  Decimal?  @db.Decimal
+  network_position_score          Decimal?  @db.Decimal
+  delegation_hhi                  Decimal?  @db.Decimal
+  delegation_volatility_7d        Decimal?  @db.Decimal
+  delegation_volatility_30d       Decimal?  @db.Decimal
+  delegation_volatility_90d       Decimal?  @db.Decimal
+  growth_rate_30d                 Decimal?  @db.Decimal
+  growth_consistency_score        Decimal?  @db.Decimal
+  size_percentile                 Decimal?  @db.Decimal
+  delegator_distribution_cv       Decimal?  @db.Decimal
+  snapshot_total_delegated_shares Decimal?  @db.Decimal
+  snapshot_delegator_count        Int?
+  snapshot_avs_count              Int?
+  snapshot_commission_bips        Decimal?  @db.Decimal
+  slashing_event_count            Int?
+  lifetime_slashing_amount        Decimal?  @db.Decimal
+  operational_days                Int?
+  is_active                       Boolean?
+  has_sufficient_data             Boolean?
+  calculated_at                   DateTime? @db.Timestamp(6)
+  calculation_duration_ms         Int?
+  operators                       operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, date], map: "uq_operator_analytics_operator_date")
+  @@index([date, risk_score], map: "idx_operator_analytics_date_risk")
+  @@index([date], map: "ix_operator_analytics_date")
+  @@index([operator_id], map: "ix_operator_analytics_operator_id")
+  @@index([risk_level], map: "ix_operator_analytics_risk_level")
+}
+
+model operator_avs_allocation_summary {
+  id                        String     @id @db.VarChar
+  operator_id               String     @db.VarChar
+  avs_id                    String     @db.VarChar
+  strategy_id               String     @db.VarChar
+  total_allocated_magnitude Decimal?   @db.Decimal
+  active_allocation_count   Int?
+  last_allocated_at         DateTime?  @db.Timestamp(6)
+  created_at                DateTime   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime   @default(now()) @db.Timestamp(6)
+  avs                       avs        @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operators                 operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([avs_id], map: "idx_avs_alloc_summary_avs")
+  @@index([total_allocated_magnitude], map: "idx_avs_alloc_summary_magnitude")
+  @@index([operator_id], map: "idx_avs_alloc_summary_operator")
+  @@index([avs_id], map: "ix_operator_avs_allocation_summary_avs_id")
+  @@index([operator_id], map: "ix_operator_avs_allocation_summary_operator_id")
+  @@index([strategy_id], map: "ix_operator_avs_allocation_summary_strategy_id")
+}
+
+model operator_avs_registration_history {
+  id                   Int       @id @default(autoincrement())
+  operator_id          String    @db.VarChar
+  avs_id               String    @db.VarChar
+  status               String    @db.VarChar
+  status_changed_at    DateTime  @db.Timestamp(6)
+  status_changed_block Int
+  event_id             String?   @db.VarChar
+  transaction_hash     String?   @db.VarChar
+  created_at           DateTime  @default(now()) @db.Timestamp(6)
+  updated_at           DateTime  @default(now()) @db.Timestamp(6)
+  avs                  avs       @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operators            operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([avs_id, status_changed_at], map: "idx_avs_reg_hist_avs")
+  @@index([operator_id, status_changed_at], map: "idx_avs_reg_hist_operator")
+  @@index([operator_id, avs_id], map: "idx_avs_reg_hist_period")
+  @@index([status], map: "idx_avs_reg_hist_status")
+  @@index([avs_id], map: "ix_operator_avs_registration_history_avs_id")
+  @@index([operator_id], map: "ix_operator_avs_registration_history_operator_id")
+  @@index([status_changed_at], map: "ix_operator_avs_registration_history_status_changed_at")
+}
+
+model operator_avs_relationship_snapshots {
+  id                        Int       @id @default(autoincrement())
+  operator_id               String    @db.VarChar
+  avs_id                    String    @db.VarChar
+  snapshot_date             DateTime  @db.Date
+  snapshot_block            Int
+  current_status            String    @db.VarChar
+  days_registered_to_date   Int?
+  current_period_days       Int?
+  total_registration_cycles Int?
+  active_operator_set_count Int?
+  avs_commission_bips       Int?
+  avs                       avs       @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operators                 operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, avs_id, snapshot_date], map: "operator_avs_relationship_snapshots_unique")
+  @@index([avs_id, snapshot_date], map: "idx_avs_rel_snap_avs_date")
+  @@index([operator_id, snapshot_date], map: "idx_avs_rel_snap_operator_date")
+  @@index([current_status], map: "idx_avs_rel_snap_status")
+  @@index([avs_id], map: "ix_operator_avs_relationship_snapshots_avs_id")
+  @@index([operator_id], map: "ix_operator_avs_relationship_snapshots_operator_id")
+  @@index([snapshot_date], map: "ix_operator_avs_relationship_snapshots_snapshot_date")
+}
+
+model operator_avs_relationships {
+  id                        String    @id @db.VarChar
+  operator_id               String    @db.VarChar
+  avs_id                    String    @db.VarChar
+  current_status            String    @db.VarChar
+  current_status_since      DateTime  @db.Timestamp(6)
+  first_registered_at       DateTime? @db.Timestamp(6)
+  last_registered_at        DateTime? @db.Timestamp(6)
+  last_unregistered_at      DateTime? @db.Timestamp(6)
+  total_registration_cycles Int?
+  total_days_registered     Int?
+  current_period_start      DateTime? @db.Timestamp(6)
+  current_period_days       Int?
+  active_operator_set_ids   Json?
+  active_operator_set_count Int?
+  avs_commission_bips       Int?
+  last_activity_at          DateTime? @db.Timestamp(6)
+  created_at                DateTime  @default(now()) @db.Timestamp(6)
+  updated_at                DateTime  @default(now()) @db.Timestamp(6)
+  avs                       avs       @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operators                 operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([total_registration_cycles], map: "idx_avs_rel_cycles")
+  @@index([operator_id, current_status], map: "idx_avs_rel_operator_status")
+  @@index([current_status], map: "idx_avs_rel_status")
+  @@index([avs_id], map: "ix_operator_avs_relationships_avs_id")
+  @@index([current_status], map: "ix_operator_avs_relationships_current_status")
+  @@index([operator_id], map: "ix_operator_avs_relationships_operator_id")
+}
+
+model operator_commission_history {
+  id                       Int            @id @default(autoincrement())
+  operator_id              String         @db.VarChar
+  commission_type          String         @db.VarChar
+  avs_id                   String?        @db.VarChar
+  operator_set_id          String?        @db.VarChar
+  old_bips                 Int
+  new_bips                 Int
+  change_delta             Int
+  changed_at               DateTime       @db.Timestamp(6)
+  activated_at             DateTime       @db.Timestamp(6)
+  activation_delay_seconds Int?
+  event_id                 String?        @db.VarChar
+  caller                   String?        @db.VarChar
+  block_number             Int?
+  avs                      avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
+  operators                operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets            operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
+
+  @@index([operator_id, changed_at], map: "idx_commission_hist_operator")
+  @@index([commission_type], map: "idx_commission_hist_type")
+  @@index([changed_at], map: "ix_operator_commission_history_changed_at")
+  @@index([commission_type], map: "ix_operator_commission_history_commission_type")
+  @@index([operator_id], map: "ix_operator_commission_history_operator_id")
+}
+
+model operator_commission_rates {
+  id                    String         @id @db.VarChar
+  operator_id           String         @db.VarChar
+  commission_type       String         @db.VarChar
+  avs_id                String?        @db.VarChar
+  operator_set_id       String?        @db.VarChar
+  current_bips          Int
+  current_activated_at  DateTime       @db.Timestamp(6)
+  current_set_at_block  Int
+  upcoming_bips         Int?
+  upcoming_activated_at DateTime?      @db.Timestamp(6)
+  upcoming_set_at_block Int?
+  previous_bips         Int?
+  total_changes         Int?
+  first_set_at          DateTime?      @db.Timestamp(6)
+  created_at            DateTime       @default(now()) @db.Timestamp(6)
+  updated_at            DateTime       @default(now()) @db.Timestamp(6)
+  avs                   avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
+  operators             operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets         operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
+
+  @@index([operator_id, avs_id], map: "idx_commission_avs")
+  @@index([current_bips], map: "idx_commission_bips")
+  @@index([operator_id], map: "idx_commission_operator")
+  @@index([commission_type], map: "idx_commission_type")
+  @@index([operator_id], map: "ix_operator_commission_rates_operator_id")
+}
+
+model operator_commission_rates_snapshots {
+  id              Int            @id @default(autoincrement())
+  operator_id     String         @db.VarChar
+  commission_type String         @db.VarChar
+  avs_id          String?        @db.VarChar
+  operator_set_id String?        @db.VarChar
+  snapshot_date   DateTime       @db.Date
+  snapshot_block  Int
+  current_bips    Int
+  avs             avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
+  operators       operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets   operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
+
+  @@unique([operator_id, commission_type, snapshot_date], map: "operator_commission_rates_snapshots_unique")
+  @@index([avs_id, snapshot_date], map: "idx_commission_snap_avs")
+  @@index([operator_id, snapshot_date], map: "idx_commission_snap_operator_date")
+  @@index([commission_type], map: "idx_commission_snap_type")
+  @@index([commission_type], map: "ix_operator_commission_rates_snapshots_commission_type")
+  @@index([operator_id], map: "ix_operator_commission_rates_snapshots_operator_id")
+  @@index([snapshot_date], map: "ix_operator_commission_rates_snapshots_snapshot_date")
+}
+
+model operator_daily_snapshots {
+  id                        Int       @id @default(autoincrement())
+  operator_id               String    @db.VarChar
+  snapshot_date             DateTime  @db.Date
+  snapshot_block            Int
+  delegator_count           Int?
+  active_avs_count          Int?
+  active_operator_set_count Int?
+  pi_split_bips             Int?
+  slash_event_count_to_date Int?
+  operational_days          Int?
+  is_active                 Boolean?
+  operators                 operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, snapshot_date], map: "operator_daily_snapshots_operator_date_key")
+  @@index([snapshot_date], map: "idx_snapshot_date")
+  @@index([operator_id, snapshot_date], map: "idx_snapshot_operator_date")
+  @@index([operator_id], map: "ix_operator_daily_snapshots_operator_id")
+  @@index([snapshot_date], map: "ix_operator_daily_snapshots_snapshot_date")
+}
+
+model operator_delegation_approver_history {
+  id                      Int       @id @default(autoincrement())
+  operator_id             String    @db.VarChar
+  old_delegation_approver String?   @db.VarChar
+  new_delegation_approver String    @db.VarChar
+  changed_at              DateTime  @db.Timestamp(6)
+  changed_at_block        Int
+  transaction_hash        String    @db.VarChar
+  created_at              DateTime  @default(now()) @db.Timestamp(6)
+  updated_at              DateTime  @default(now()) @db.Timestamp(6)
+  operators               operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([operator_id, changed_at], map: "idx_delegation_approver_hist_operator")
+  @@index([changed_at], map: "ix_operator_delegation_approver_history_changed_at")
+  @@index([operator_id], map: "ix_operator_delegation_approver_history_operator_id")
+}
+
+model operator_delegator_history {
+  id               Int       @id @default(autoincrement())
+  operator_id      String    @db.VarChar
+  staker_id        String    @db.VarChar
+  delegation_type  String    @db.VarChar
+  event_timestamp  DateTime  @db.Timestamp(6)
+  event_block      Int
+  transaction_hash String?   @db.VarChar
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  updated_at       DateTime  @default(now()) @db.Timestamp(6)
+  operators        operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stakers          stakers   @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([operator_id, event_timestamp], map: "idx_delegator_hist_operator")
+  @@index([staker_id, event_timestamp], map: "idx_delegator_hist_staker")
+  @@index([delegation_type], map: "idx_delegator_hist_type")
+  @@index([event_timestamp], map: "ix_operator_delegator_history_event_timestamp")
+  @@index([operator_id], map: "ix_operator_delegator_history_operator_id")
+  @@index([staker_id], map: "ix_operator_delegator_history_staker_id")
+}
+
+model operator_delegator_shares {
+  id                   String     @id @db.VarChar
+  operator_id          String     @db.VarChar
+  staker_id            String     @db.VarChar
+  strategy_id          String     @db.VarChar
+  shares               Decimal    @db.Decimal
+  shares_updated_at    DateTime?  @db.Timestamp(6)
+  shares_updated_block Int?
+  created_at           DateTime   @default(now()) @db.Timestamp(6)
+  updated_at           DateTime   @default(now()) @db.Timestamp(6)
+  operators            operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stakers              stakers    @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies           strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([shares], map: "idx_delegator_shares_amount")
+  @@index([operator_id], map: "idx_delegator_shares_operator")
+  @@index([staker_id], map: "idx_delegator_shares_staker")
+  @@index([operator_id], map: "ix_operator_delegator_shares_operator_id")
+  @@index([staker_id], map: "ix_operator_delegator_shares_staker_id")
+  @@index([strategy_id], map: "ix_operator_delegator_shares_strategy_id")
+}
+
+model operator_delegator_shares_snapshots {
+  id             Int        @id @default(autoincrement())
+  operator_id    String     @db.VarChar
+  staker_id      String     @db.VarChar
+  strategy_id    String     @db.VarChar
+  snapshot_date  DateTime   @db.Date
+  snapshot_block Int
+  shares         Decimal    @db.Decimal
+  is_delegated   Boolean
+  operators      operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stakers        stakers    @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies     strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, staker_id, strategy_id, snapshot_date], map: "operator_delegator_shares_snapshots_unique")
+  @@index([is_delegated], map: "idx_delegator_shares_snap_delegated")
+  @@index([operator_id, snapshot_date], map: "idx_delegator_shares_snap_operator_date")
+  @@index([staker_id, snapshot_date], map: "idx_delegator_shares_snap_staker_date")
+  @@index([strategy_id, snapshot_date], map: "idx_delegator_shares_snap_strategy_date")
+  @@index([operator_id], map: "ix_operator_delegator_shares_snapshots_operator_id")
+  @@index([snapshot_date], map: "ix_operator_delegator_shares_snapshots_snapshot_date")
+  @@index([staker_id], map: "ix_operator_delegator_shares_snapshots_staker_id")
+  @@index([strategy_id], map: "ix_operator_delegator_shares_snapshots_strategy_id")
+}
+
+model operator_delegators {
+  id             String    @id @db.VarChar
+  operator_id    String    @db.VarChar
+  staker_id      String    @db.VarChar
+  is_delegated   Boolean?
+  delegated_at   DateTime? @db.Timestamp(6)
+  undelegated_at DateTime? @db.Timestamp(6)
+  created_at     DateTime  @default(now()) @db.Timestamp(6)
+  updated_at     DateTime  @default(now()) @db.Timestamp(6)
+  operators      operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stakers        stakers   @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([operator_id, is_delegated], map: "idx_delegator_operator_status")
+  @@index([is_delegated], map: "ix_operator_delegators_is_delegated")
+  @@index([operator_id], map: "ix_operator_delegators_operator_id")
+  @@index([staker_id], map: "ix_operator_delegators_staker_id")
+}
+
+model operator_metadata {
+  operator_id         String    @id @db.VarChar
+  metadata_uri        String    @db.VarChar
+  metadata_json       Json?
+  metadata_fetched_at DateTime? @db.Timestamp(6)
+  last_updated_at     DateTime  @db.Timestamp(6)
+  last_updated_block  Int
+  total_updates       Int?
+  created_at          DateTime  @default(now()) @db.Timestamp(6)
+  updated_at          DateTime  @default(now()) @db.Timestamp(6)
+  operators           operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([last_updated_at], map: "idx_operator_metadata_updated")
+  @@index([operator_id], map: "ix_operator_metadata_operator_id")
+}
+
+model operator_metadata_history {
+  id                  Int       @id @default(autoincrement())
+  operator_id         String    @db.VarChar
+  metadata_uri        String    @db.VarChar
+  metadata_json       Json?
+  metadata_fetched_at DateTime? @db.Timestamp(6)
+  updated_at          DateTime  @db.Timestamp(6)
+  updated_at_block    Int
+  transaction_hash    String    @db.VarChar
+  created_at          DateTime  @default(now()) @db.Timestamp(6)
+  operators           operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([updated_at_block], map: "idx_metadata_history_block")
+  @@index([operator_id, updated_at], map: "idx_metadata_history_operator")
+  @@index([operator_id], map: "ix_operator_metadata_history_operator_id")
+  @@index([updated_at], map: "ix_operator_metadata_history_updated_at")
+}
+
+model operator_registration {
+  operator_id         String    @id @db.VarChar
+  registered_at       DateTime  @db.Timestamp(6)
+  registration_block  Int
+  delegation_approver String    @db.VarChar
+  transaction_hash    String    @db.VarChar
+  created_at          DateTime  @default(now()) @db.Timestamp(6)
+  updated_at          DateTime  @default(now()) @db.Timestamp(6)
+  operators           operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([registration_block], map: "idx_operator_registration_block")
+  @@index([registered_at], map: "idx_operator_registration_date")
+  @@index([operator_id], map: "ix_operator_registration_operator_id")
+}
+
+model operator_sets {
+  id                                  String                                @id @db.VarChar
+  avs_id                              String                                @db.VarChar
+  operator_set_id                     Int
+  created_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  operator_allocation_snapshots       operator_allocation_snapshots[]
+  operator_allocations                operator_allocations[]
+  operator_commission_history         operator_commission_history[]
+  operator_commission_rates           operator_commission_rates[]
+  operator_commission_rates_snapshots operator_commission_rates_snapshots[]
+  avs                                 avs                                   @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_slashing_incidents         operator_slashing_incidents[]
+
+  @@index([avs_id], map: "idx_operator_set_avs")
+  @@index([avs_id], map: "ix_operator_sets_avs_id")
+}
+
+model operator_slashing_amounts {
+  id                          Int                         @id @default(autoincrement())
+  slashing_incident_id        Int
+  operator_id                 String                      @db.VarChar
+  strategy_id                 String                      @db.VarChar
+  wad_slashed                 Decimal                     @db.Decimal
+  created_at                  DateTime                    @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime                    @default(now()) @db.Timestamp(6)
+  operators                   operators                   @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_slashing_incidents operator_slashing_incidents @relation(fields: [slashing_incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                  strategies                  @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([slashing_incident_id], map: "idx_slash_amount_incident")
+  @@index([operator_id], map: "idx_slash_amount_operator")
+  @@index([strategy_id], map: "idx_slash_amount_strategy")
+  @@index([operator_id], map: "ix_operator_slashing_amounts_operator_id")
+  @@index([slashing_incident_id], map: "ix_operator_slashing_amounts_slashing_incident_id")
+  @@index([strategy_id], map: "ix_operator_slashing_amounts_strategy_id")
+}
+
+model operator_slashing_incidents {
+  id                        Int                         @id @default(autoincrement())
+  operator_id               String                      @db.VarChar
+  operator_set_id           String                      @db.VarChar
+  slashed_at                DateTime                    @db.Timestamp(6)
+  slashed_at_block          Int
+  description               String                      @db.VarChar
+  event_id                  Int?
+  transaction_hash          String?                     @db.VarChar
+  created_at                DateTime                    @default(now()) @db.Timestamp(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamp(6)
+  operator_slashing_amounts operator_slashing_amounts[]
+  operators                 operators                   @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets             operator_sets               @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([operator_set_id], map: "idx_slash_avs")
+  @@index([operator_id, slashed_at], map: "idx_slash_operator_date")
+  @@index([operator_id], map: "ix_operator_slashing_incidents_operator_id")
+  @@index([slashed_at], map: "ix_operator_slashing_incidents_slashed_at")
+}
+
+model operator_state {
+  operator_id                    String    @id @db.VarChar
+  operator_address               String    @unique @db.VarChar
+  current_metadata_uri           String?   @db.VarChar
+  registered_at                  DateTime? @db.Timestamp(6)
+  registration_block             Int?
+  first_activity_at              DateTime? @db.Timestamp(6)
+  first_activity_block           Int?
+  first_activity_type            String?   @db.VarChar
+  current_delegation_approver    String    @db.VarChar
+  is_permissioned                Boolean?
+  delegation_approver_updated_at DateTime? @db.Timestamp(6)
+  current_pi_split_bips          Int?
+  pi_split_activated_at          DateTime? @db.Timestamp(6)
+  active_avs_count               Int?
+  active_operator_set_count      Int?
+  registered_avs_count           Int?
+  total_delegators               Int?
+  active_delegators              Int?
+  total_slash_events             Int?
+  last_slashed_at                DateTime? @db.Timestamp(6)
+  force_undelegation_count       Int?
+  last_allocation_at             DateTime? @db.Timestamp(6)
+  last_commission_change_at      DateTime? @db.Timestamp(6)
+  last_metadata_update_at        DateTime? @db.Timestamp(6)
+  last_activity_at               DateTime? @db.Timestamp(6)
+  is_active                      Boolean?
+  operational_days               Int?
+  created_at                     DateTime  @default(now()) @db.Timestamp(6)
+  updated_at                     DateTime  @default(now()) @db.Timestamp(6)
+  operators                      operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_active], map: "idx_operator_active")
+  @@index([first_activity_at], map: "idx_operator_first_activity")
+  @@index([total_slash_events], map: "idx_operator_slashes")
+  @@index([operator_id], map: "ix_operator_state_operator_id")
+}
+
+model operator_strategy_daily_snapshots {
+  id                   Int        @id @default(autoincrement())
+  operator_id          String     @db.VarChar
+  strategy_id          String     @db.VarChar
+  snapshot_date        DateTime   @db.Date
+  snapshot_block       Int
+  max_magnitude        Decimal    @db.Decimal
+  encumbered_magnitude Decimal?   @db.Decimal
+  utilization_rate     Decimal?   @db.Decimal
+  operators            operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies           strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([operator_id, strategy_id, snapshot_date], map: "operator_strategy_daily_snapshots_operator_strategy_date_key")
+  @@index([max_magnitude], map: "idx_strategy_snapshot_magnitude")
+  @@index([operator_id, snapshot_date], map: "idx_strategy_snapshot_operator_date")
+  @@index([strategy_id, snapshot_date], map: "idx_strategy_snapshot_strategy_date")
+  @@index([operator_id], map: "ix_operator_strategy_daily_snapshots_operator_id")
+  @@index([snapshot_date], map: "ix_operator_strategy_daily_snapshots_snapshot_date")
+  @@index([strategy_id], map: "ix_operator_strategy_daily_snapshots_strategy_id")
+}
+
+model operator_strategy_state {
+  id                                 String     @id @db.VarChar
+  operator_id                        String     @db.VarChar
+  strategy_id                        String     @db.VarChar
+  max_magnitude                      Decimal    @db.Decimal
+  max_magnitude_updated_at           DateTime?  @db.Timestamp(6)
+  max_magnitude_updated_block        Int?
+  encumbered_magnitude               Decimal    @db.Decimal
+  encumbered_magnitude_updated_at    DateTime?  @db.Timestamp(6)
+  encumbered_magnitude_updated_block Int?
+  utilization_rate                   Decimal?   @db.Decimal
+  created_at                         DateTime   @default(now()) @db.Timestamp(6)
+  updated_at                         DateTime   @default(now()) @db.Timestamp(6)
+  operators                          operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                         strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([max_magnitude], map: "idx_operator_strategy_max_mag")
+  @@index([operator_id], map: "idx_operator_strategy_operator")
+  @@index([utilization_rate], map: "idx_operator_strategy_utilization")
+  @@index([operator_id], map: "ix_operator_strategy_state_operator_id")
+  @@index([strategy_id], map: "ix_operator_strategy_state_strategy_id")
+}
+
+model operators {
+  id                                   String                                 @id @db.VarChar
+  address                              String                                 @unique @db.VarChar
+  created_at                           DateTime                               @default(now()) @db.Timestamp(6)
+  updated_at                           DateTime                               @default(now()) @db.Timestamp(6)
+  concentration_metrics                concentration_metrics[]
+  operator_allocation_snapshots        operator_allocation_snapshots[]
+  operator_allocations                 operator_allocations[]
+  operator_analytics                   operator_analytics[]
+  operator_avs_allocation_summary      operator_avs_allocation_summary[]
+  operator_avs_registration_history    operator_avs_registration_history[]
+  operator_avs_relationship_snapshots  operator_avs_relationship_snapshots[]
+  operator_avs_relationships           operator_avs_relationships[]
+  operator_commission_history          operator_commission_history[]
+  operator_commission_rates            operator_commission_rates[]
+  operator_commission_rates_snapshots  operator_commission_rates_snapshots[]
+  operator_daily_snapshots             operator_daily_snapshots[]
+  operator_delegation_approver_history operator_delegation_approver_history[]
+  operator_delegator_history           operator_delegator_history[]
+  operator_delegator_shares            operator_delegator_shares[]
+  operator_delegator_shares_snapshots  operator_delegator_shares_snapshots[]
+  operator_delegators                  operator_delegators[]
+  operator_metadata                    operator_metadata?
+  operator_metadata_history            operator_metadata_history[]
+  operator_registration                operator_registration?
+  operator_slashing_amounts            operator_slashing_amounts[]
+  operator_slashing_incidents          operator_slashing_incidents[]
+  operator_state                       operator_state?
+  operator_strategy_daily_snapshots    operator_strategy_daily_snapshots[]
+  operator_strategy_state              operator_strategy_state[]
+  volatility_metrics                   volatility_metrics[]
+}
+
+model pipeline_checkpoints {
+  pipeline_name             String   @id @db.VarChar(100)
+  last_processed_at         DateTime @db.Timestamp(6)
+  last_processed_block      BigInt?
+  operators_processed_count Int?
+  total_events_processed    Int?
+  run_duration_seconds      Int?
+  run_metadata              Json?
+  created_at                DateTime @default(now()) @db.Timestamp(6)
+  updated_at                DateTime @default(now()) @db.Timestamp(6)
+}
+
+model slashing_events_cache {
+  operator_id      String    @db.VarChar
+  block_number     Int
+  transaction_hash String    @db.VarChar
+  operator_set_id  String    @db.VarChar
+  slashed_at       DateTime  @db.Timestamp(6)
+  description      String?   @db.VarChar
+  strategies       String[]  @db.VarChar
+  wad_slashed      Decimal[] @db.Decimal
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  updated_at       DateTime  @default(now()) @db.Timestamp(6)
+
+  @@id([operator_id, block_number, transaction_hash])
+  @@index([operator_id], map: "idx_slashing_cache_operator")
+}
+
+model stakers {
+  id                                  String                                @id @db.VarChar
+  address                             String                                @unique @db.VarChar
+  created_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  operator_delegator_history          operator_delegator_history[]
+  operator_delegator_shares           operator_delegator_shares[]
+  operator_delegator_shares_snapshots operator_delegator_shares_snapshots[]
+  operator_delegators                 operator_delegators[]
+}
+
+model strategies {
+  id                                  String                                @id @db.VarChar
+  address                             String                                @unique @db.VarChar
+  created_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime                              @default(now()) @db.Timestamp(6)
+  operator_allocation_snapshots       operator_allocation_snapshots[]
+  operator_allocations                operator_allocations[]
+  operator_avs_allocation_summary     operator_avs_allocation_summary[]
+  operator_delegator_shares           operator_delegator_shares[]
+  operator_delegator_shares_snapshots operator_delegator_shares_snapshots[]
+  operator_slashing_amounts           operator_slashing_amounts[]
+  operator_strategy_daily_snapshots   operator_strategy_daily_snapshots[]
+  operator_strategy_state             operator_strategy_state[]
+}
+
+model volatility_metrics {
+  id                       Int        @id @default(autoincrement())
+  entity_type              String     @db.VarChar
+  entity_id                String     @db.VarChar
+  date                     DateTime   @db.Date
+  metric_type              String     @db.VarChar
+  volatility_7d            Decimal?   @db.Decimal
+  volatility_30d           Decimal?   @db.Decimal
+  volatility_90d           Decimal?   @db.Decimal
+  mean_value               Decimal?   @db.Decimal
+  coefficient_of_variation Decimal?   @db.Decimal
+  trend_direction          Decimal?   @db.Decimal
+  trend_strength           Decimal?   @db.Decimal
+  data_points_count        Int?
+  confidence_score         Decimal?   @db.Decimal
+  operator_id              String?    @db.VarChar
+  operators                operators? @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([entity_type, entity_id, date, metric_type], map: "uix_volatility_metrics")
+  @@index([entity_type, entity_id, date], map: "idx_volatility_entity")
+  @@index([date], map: "ix_volatility_metrics_date")
+  @@index([entity_id], map: "ix_volatility_metrics_entity_id")
+  @@index([entity_type], map: "ix_volatility_metrics_entity_type")
+  @@index([metric_type], map: "ix_volatility_metrics_metric_type")
+}

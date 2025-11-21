@@ -1,14 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/logger/logger.service.ts
-import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
-import pino from 'pino';
-import { env } from '../config/env.validation';
+import { Injectable, LoggerService as NestLoggerService } from "@nestjs/common";
+import pino from "pino";
+import { env } from "../config/env.validation";
 
 @Injectable()
 export class LoggerService implements NestLoggerService {
   private readonly logger: pino.Logger;
 
   constructor() {
-    const isDevelopment = env.NODE_ENV === 'development';
+    const isDevelopment = env.NODE_ENV === "development";
 
     this.logger = pino({
       level: env.LOG_LEVEL,
@@ -16,11 +17,11 @@ export class LoggerService implements NestLoggerService {
       // Pretty print only in development
       transport: isDevelopment
         ? {
-            target: 'pino-pretty',
+            target: "pino-pretty",
             options: {
               colorize: true,
-              translateTime: 'HH:MM:ss',
-              ignore: 'pid,hostname',
+              translateTime: "HH:MM:ss",
+              ignore: "pid,hostname",
               singleLine: true,
             },
           }
