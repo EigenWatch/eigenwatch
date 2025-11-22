@@ -36,15 +36,19 @@ async function bootstrap() {
 
   // Swagger documentation
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("EigenLayer Analytics API")
+    .setTitle("EigenWatch API")
     .setDescription(
       "API for comprehensive EigenLayer operator analytics, performance tracking, and network insights"
     )
     .setVersion("1.0")
-    .setContact("EigenWatch Team", "https://eigenwatch.io", "api@eigenwatch.io")
-    .addServer("http://localhost:3000", "Development")
-    .addServer("https://api-staging.eigenwatch.io", "Staging")
-    .addServer("https://api.eigenwatch.io", "Production")
+    .setContact(
+      "EigenWatch Team",
+      "https://eigenwatch.xyz",
+      "eigenwatchteam@gmail.com"
+    )
+    .addServer("http://localhost:8000", "Development")
+    .addServer("https://api-staging.eigenwatch.xyz", "Staging")
+    .addServer("https://api.eigenwatch.xyz", "Production")
     .addApiKey(
       {
         type: "apiKey",
@@ -79,7 +83,7 @@ async function bootstrap() {
   await app.listen(port);
 
   console.log(`
-    🚀 EigenLayer Analytics API is running!
+    🚀 EigenWatch API is running!
     
     📚 Documentation: http://localhost:${port}/api/docs
     🏥 Health Check:  http://localhost:${port}/api/v1/health

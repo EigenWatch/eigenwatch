@@ -1,8 +1,8 @@
-import { Global, Module } from '@nestjs/common';
-
 // We only import the env once at startup — this throws early if anything is wrong
-import '@/env'; // ← this line runs your envalid validation immediately
-import { AppConfigService } from './config.service';
+import * as dotenv from "dotenv";
+dotenv.config();
+import { AppConfigService } from "./config.service";
+import { Global, Module } from "@nestjs/common";
 
 @Global()
 @Module({

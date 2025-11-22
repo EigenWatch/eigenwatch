@@ -10,6 +10,7 @@ import { AppConfigService } from "../config/config.service";
 import { Prisma, PrismaClient } from "generated/prisma/client";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { AppException } from "src/shared/errors/app.exceptions";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 @Injectable()
 export class PrismaService
@@ -20,9 +21,9 @@ export class PrismaService
 
   constructor(private config: AppConfigService) {
     super({
-      // accelerateUrl is required by the generated PrismaClientOptions type.
-      // Read from environment; fall back to empty string to satisfy the type.
-      accelerateUrl: process.env.PRISMA_ACCELERATE_URL ?? "",
+      adapter: new PrismaPg({
+        connectionString: `${process.env.DATABASE_URL}`,
+      }),
       log: [
         { level: "query", emit: "event" },
         { level: "error", emit: "event" },
