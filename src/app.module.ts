@@ -16,6 +16,11 @@ import { RolesGuard } from "./core/guards/roles.guard";
 import { AuthModule } from "./modules/auth/auth.module";
 import { OperatorsModule } from "./modules/operators/operators.module";
 import { HealthModule } from "./modules/health/health.module";
+import { AVSModule } from "./modules/avs/avs.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { SearchModule } from "./modules/search/search.module";
+import { NetworkModule } from "./modules/network/network.module";
+import { StrategiesModule } from "./modules/strategies/strategies.module";
 
 @Module({
   imports: [
@@ -25,6 +30,11 @@ import { HealthModule } from "./modules/health/health.module";
     CacheModule,
     AuthModule,
     OperatorsModule,
+    AVSModule,
+    AnalyticsModule,
+    SearchModule,
+    NetworkModule,
+    StrategiesModule,
     HealthModule,
   ],
   providers: [
