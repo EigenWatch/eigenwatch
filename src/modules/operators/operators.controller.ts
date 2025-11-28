@@ -6,6 +6,8 @@ import {
   Query,
   HttpStatus,
   Logger,
+  Body,
+  Post,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -23,6 +25,29 @@ import { Public } from "@/core/decorators/public.decorator";
 import { FindOperatorsQueryDto } from "./dto/index.dto";
 import { GetActivityDto } from "./dto/activity.dto";
 import { ListOperatorAVSDto } from "./dto/avs.dto";
+import { ListDetailedAllocationsDto } from "./dto/allocation.dto";
+import { GetCommissionHistoryDto } from "./dto/commission.dto";
+import {
+  ListDelegatorsDto,
+  GetDelegationHistoryDto,
+} from "./dto/delegator.dto";
+import {
+  GetRiskAssessmentDto,
+  GetConcentrationMetricsDto,
+  GetVolatilityMetricsDto,
+} from "./dto/risk.dto";
+import {
+  CompareOperatorsDto,
+  GetRankingsDto,
+  CompareToNetworkDto,
+} from "./dto/comparison.dto";
+import {
+  GetDailySnapshotsDto,
+  GetStrategyTVSHistoryDto,
+  GetDelegatorSharesHistoryDto,
+  GetAVSTimelineDto,
+  GetAllocationHistoryDto,
+} from "./dto/time-series.dto";
 
 @ApiTags("Operators")
 @Controller("operators")
@@ -314,6 +339,702 @@ export class OperatorsController extends BaseController<any> {
     return ResponseHelper.ok(
       { history },
       "AVS registration history retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // COMMISSION & ECONOMICS ENDPOINTS (10-11)
+  // ============================================================================
+
+  /**
+   * Endpoint 10: Get Operator Commission Overview
+   */
+  @Get(":id/commission")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get operator commission overview",
+    description:
+      "All commission rates for the operator including PI, AVS, and operator set commissions",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved commission overview",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getCommissionOverview(@Param("id") id: string) {
+    const overview = await this.operatorService.getCommissionOverview(id);
+    return ResponseHelper.ok(
+      overview,
+      "Commission overview retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 11: Get Commission History
+   */
+  @Get(":id/commission/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get commission history",
+    description: "Historical commission changes for the operator",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved commission history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getCommissionHistory(
+    @Param("id") id: string,
+    @Query() query: GetCommissionHistoryDto
+  ) {
+    const history = await this.operatorService.getCommissionHistory(id, query);
+    return ResponseHelper.ok(
+      history,
+      "Commission history retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // DELEGATION & STAKER ENDPOINTS (12-14)
+  // ============================================================================
+
+  /**
+   * Endpoint 12: List Operator Delegators
+   */
+  @Get(":id/delegators")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "List operator delegators",
+    description:
+      "All delegators for an operator with filtering, sorting, and pagination",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegators",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async listDelegators(
+    @Param("id") id: string,
+    @Query() query: ListDelegatorsDto
+  ) {
+    const paginationParams = this.handlePagination(query);
+
+    const result = await this.operatorService.listDelegators(
+      id,
+      {
+        status: query.status,
+        min_shares: query.min_shares,
+        max_shares: query.max_shares,
+      },
+      paginationParams,
+      query.sort_by,
+      query.sort_order
+    );
+
+    // TODO: Investigate this
+    // We don't have accurate total count due to filtering, so we'll use delegators length
+    const paginationMeta = PaginationHelper.buildMeta(
+      result.summary.total_delegators,
+      paginationParams.limit,
+      paginationParams.offset
+    );
+
+    return ResponseHelper.ok(
+      {
+        delegators: result.delegators,
+        summary: result.summary,
+        pagination: paginationMeta,
+      },
+      "Delegators retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 13: Get Delegator Detail
+   */
+  @Get(":id/delegators/:stakerId")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegator detail",
+    description:
+      "Detailed view of a specific delegator's relationship with the operator",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "stakerId", description: "Staker ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegator detail",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator or delegator not found",
+  })
+  async getDelegatorDetail(
+    @Param("id") id: string,
+    @Param("stakerId") stakerId: string
+  ) {
+    // TODO: Investigate this endpoint
+    const detail = await this.operatorService.getDelegatorDetail(id, stakerId);
+    return ResponseHelper.ok(detail, "Delegator detail retrieved successfully");
+  }
+
+  /**
+   * Endpoint 14: Get Delegation History
+   */
+  @Get(":id/delegators/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegation history",
+    description: "Historical delegation/undelegation events for the operator",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegation history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getDelegationHistory(
+    @Param("id") id: string,
+    @Query() query: GetDelegationHistoryDto
+  ) {
+    const paginationParams = this.handlePagination(query);
+
+    const { events, total } = await this.operatorService.getDelegationHistory(
+      id,
+      {
+        event_type: query.event_type,
+        date_from: query.date_from,
+        date_to: query.date_to,
+      },
+      paginationParams
+    );
+
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      paginationParams.limit,
+      paginationParams.offset
+    );
+
+    return ResponseHelper.paginated(
+      events,
+      paginationMeta,
+      "Delegation history retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // ALLOCATION ENDPOINTS (15-16)
+  // ============================================================================
+
+  /**
+   * Endpoint 15: Get Operator Allocations Overview
+   */
+  @Get(":id/allocations")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get operator allocations overview",
+    description:
+      "Summary of all allocations grouped by AVS and strategy with utilization metrics",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved allocations overview",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getAllocationsOverview(@Param("id") id: string) {
+    const overview = await this.operatorService.getAllocationsOverview(id);
+    return ResponseHelper.ok(
+      overview,
+      "Allocations overview retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 16: List Detailed Allocations
+   */
+  @Get(":id/allocations/detailed")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "List detailed allocations",
+    description:
+      "Granular allocation records with filtering, sorting, and pagination",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved detailed allocations",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async listDetailedAllocations(
+    @Param("id") id: string,
+    @Query() query: ListDetailedAllocationsDto
+  ) {
+    const paginationParams = this.handlePagination(query);
+
+    const { allocations, total } =
+      await this.operatorService.listDetailedAllocations(
+        id,
+        {
+          avs_id: query.avs_id,
+          strategy_id: query.strategy_id,
+          min_magnitude: query.min_magnitude,
+          max_magnitude: query.max_magnitude,
+        },
+        paginationParams,
+        query.sort_by,
+        query.sort_order
+      );
+
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      paginationParams.limit,
+      paginationParams.offset
+    );
+
+    return ResponseHelper.paginated(
+      allocations,
+      paginationMeta,
+      "Detailed allocations retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // RISK & ANALYTICS ENDPOINTS (17-19)
+  // ============================================================================
+
+  /**
+   * Endpoint 17: Get Operator Risk Assessment
+   */
+  @Get(":id/risk")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get operator risk assessment",
+    description:
+      "Current risk metrics and scores including component breakdowns and key metrics",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved risk assessment",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found or no risk assessment available",
+  })
+  async getRiskAssessment(
+    @Param("id") id: string,
+    @Query() query: GetRiskAssessmentDto
+  ) {
+    const assessment = await this.operatorService.getRiskAssessment(
+      id,
+      query.date
+    );
+    return ResponseHelper.ok(
+      assessment,
+      "Risk assessment retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 18: Get Concentration Metrics
+   */
+  @Get(":id/concentration")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get concentration metrics",
+    description:
+      "Delegation and allocation concentration metrics including HHI, Gini coefficient, and distribution percentiles",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved concentration metrics",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getConcentrationMetrics(
+    @Param("id") id: string,
+    @Query() query: GetConcentrationMetricsDto
+  ) {
+    const metrics = await this.operatorService.getConcentrationMetrics(
+      id,
+      query.concentration_type || "delegation",
+      query.date
+    );
+    return ResponseHelper.ok(
+      metrics,
+      "Concentration metrics retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 19: Get Volatility Metrics
+   */
+  @Get(":id/volatility")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get volatility metrics",
+    description:
+      "Volatility measures for operator metrics including 7d, 30d, 90d volatility and trend analysis",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved volatility metrics",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getVolatilityMetrics(
+    @Param("id") id: string,
+    @Query() query: GetVolatilityMetricsDto
+  ) {
+    const metrics = await this.operatorService.getVolatilityMetrics(
+      id,
+      query.metric_type || "tvs",
+      query.date
+    );
+    return ResponseHelper.ok(
+      metrics,
+      "Volatility metrics retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // TIME SERIES & HISTORICAL ENDPOINTS (20-25)
+  // ============================================================================
+
+  /**
+   * Endpoint 20: Get Operator Daily Snapshots
+   */
+  @Get(":id/snapshots/daily")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get operator daily snapshots",
+    description:
+      "Daily snapshot time series for the operator showing key metrics over time",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved daily snapshots",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getDailySnapshots(
+    @Param("id") id: string,
+    @Query() query: GetDailySnapshotsDto
+  ) {
+    const snapshots = await this.operatorService.getDailySnapshots(
+      id,
+      query.date_from,
+      query.date_to
+    );
+    return ResponseHelper.ok(
+      snapshots,
+      "Daily snapshots retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 21: Get Strategy TVS History
+   */
+  @Get(":id/strategies/:strategyId/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get strategy TVS history",
+    description:
+      "TVS changes over time for a specific strategy including utilization rates",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "strategyId", description: "Strategy ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved strategy TVS history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator or strategy not found",
+  })
+  async getStrategyTVSHistory(
+    @Param("id") id: string,
+    @Param("strategyId") strategyId: string,
+    @Query() query: GetStrategyTVSHistoryDto
+  ) {
+    const history = await this.operatorService.getStrategyTVSHistory(
+      id,
+      strategyId,
+      query.date_from,
+      query.date_to
+    );
+    return ResponseHelper.ok(
+      history,
+      "Strategy TVS history retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 22: Get Delegator Shares History
+   */
+  @Get(":id/delegators/:stakerId/shares/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegator shares history",
+    description:
+      "Historical shares for a delegator across strategies over time",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "stakerId", description: "Staker ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegator shares history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator or delegator not found",
+  })
+  async getDelegatorSharesHistory(
+    @Param("id") id: string,
+    @Param("stakerId") stakerId: string,
+    @Query() query: GetDelegatorSharesHistoryDto
+  ) {
+    const history = await this.operatorService.getDelegatorSharesHistory(
+      id,
+      stakerId,
+      query
+    );
+    return ResponseHelper.ok(
+      history,
+      "Delegator shares history retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 23: Get AVS Relationship Timeline
+   */
+  @Get(":id/avs/:avsId/timeline")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get AVS relationship timeline",
+    description:
+      "Daily snapshots of operator-AVS relationship showing registration status over time",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "avsId", description: "AVS ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved AVS relationship timeline",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator or AVS not found",
+  })
+  async getAVSRelationshipTimeline(
+    @Param("id") id: string,
+    @Param("avsId") avsId: string,
+    @Query() query: GetAVSTimelineDto
+  ) {
+    const timeline = await this.operatorService.getAVSRelationshipTimeline(
+      id,
+      avsId,
+      query.date_from,
+      query.date_to
+    );
+    return ResponseHelper.ok(
+      timeline,
+      "AVS relationship timeline retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 24: Get Allocation History
+   */
+  @Get(":id/allocations/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get allocation history",
+    description:
+      "Time series of allocation snapshots showing magnitude changes over time",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved allocation history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getAllocationHistory(
+    @Param("id") id: string,
+    @Query() query: GetAllocationHistoryDto
+  ) {
+    const history = await this.operatorService.getAllocationHistory(id, query);
+    return ResponseHelper.ok(
+      history,
+      "Allocation history retrieved successfully"
+    );
+  }
+
+  /**
+   * Endpoint 25: Get Slashing Incidents
+   */
+  @Get(":id/slashing")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get slashing incidents",
+    description:
+      "All slashing incidents for the operator with amounts by strategy",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved slashing incidents",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getSlashingIncidents(@Param("id") id: string) {
+    const incidents = await this.operatorService.getSlashingIncidents(id);
+    return ResponseHelper.ok(
+      incidents,
+      "Slashing incidents retrieved successfully"
+    );
+  }
+
+  // ============================================================================
+  // COMPARISON & BENCHMARK ENDPOINTS (26-28)
+  // ============================================================================
+
+  /**
+   * Endpoint 26: Compare Operators
+   */
+  @Post("compare")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Compare operators",
+    description:
+      "Side-by-side comparison of multiple operators (2-5) across selected metrics",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully compared operators",
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "Invalid operator IDs or comparison parameters",
+  })
+  async compareOperators(@Body() dto: CompareOperatorsDto) {
+    const comparison = await this.operatorService.compareOperators(dto);
+    return ResponseHelper.ok(comparison, "Operators compared successfully");
+  }
+
+  /**
+   * Endpoint 27: Get Operator Percentile Rankings
+   */
+  @Get(":id/rankings")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get operator percentile rankings",
+    description:
+      "Percentile rankings for the operator across various metrics relative to network",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved rankings",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getOperatorRankings(
+    @Param("id") id: string,
+    @Query() query: GetRankingsDto
+  ) {
+    const rankings = await this.operatorService.getOperatorRankings(
+      id,
+      query.date
+    );
+    return ResponseHelper.ok(rankings, "Rankings retrieved successfully");
+  }
+
+  /**
+   * Endpoint 28: Compare Operator to Network Averages
+   */
+  @Get(":id/vs-network")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Compare operator to network averages",
+    description: "Compare operator metrics to network mean and median values",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved network comparison",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async compareOperatorToNetwork(
+    @Param("id") id: string,
+    @Query() query: CompareToNetworkDto
+  ) {
+    const comparison = await this.operatorService.compareOperatorToNetwork(
+      id,
+      query.date
+    );
+    return ResponseHelper.ok(
+      comparison,
+      "Network comparison retrieved successfully"
     );
   }
 }

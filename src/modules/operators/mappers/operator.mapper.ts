@@ -493,4 +493,649 @@ export class OperatorMapper {
     };
     return logos[address?.toLowerCase()] || "";
   }
+
+  // ============================================================================
+  // COMMISSION MAPPERS (Endpoints 10-11)
+  // ============================================================================
+
+  mapToCommissionOverview(commissions: any[]): any {
+    // Filter by commission type
+    const piCommission = commissions.find((c) => c.commission_type === "pi");
+    const avsCommissions = commissions.filter(
+      (c) => c.commission_type === "avs"
+    );
+    const operatorSetCommissions = commissions.filter(
+      (c) => c.commission_type === "operator_set"
+    );
+
+    return {
+      pi_commission: piCommission
+        ? {
+            current_bips: piCommission.current_bips,
+            activated_at: piCommission.current_activated_at.toISOString(),
+            total_changes: piCommission.total_changes || 0,
+          }
+        : null,
+      avs_commissions: avsCommissions.map((c) => ({
+        avs_id: c.avs_id,
+        avs_name: this.getAVSName(c.avs?.address),
+        current_bips: c.current_bips,
+        activated_at: c.current_activated_at.toISOString(),
+        upcoming_bips: c.upcoming_bips,
+        upcoming_activated_at: c.upcoming_activated_at?.toISOString() || null,
+      })),
+      operator_set_commissions: operatorSetCommissions.map((c) => ({
+        operator_set_id: c.operator_set_id,
+        avs_name: this.getAVSName(c.operator_sets?.avs?.address),
+        operator_set_number: c.operator_sets?.operator_set_id || 0,
+        current_bips: c.current_bips,
+        activated_at: c.current_activated_at.toISOString(),
+      })),
+    };
+  }
+
+  mapToCommissionHistory(history: any[]): any {
+    return {
+      changes: history.map((item) => ({
+        commission_type: item.commission_type,
+        avs_id: item.avs_id,
+        avs_name: item.avs ? this.getAVSName(item.avs.address) : null,
+        operator_set_id: item.operator_set_id,
+        old_bips: item.old_bips,
+        new_bips: item.new_bips,
+        change_delta: item.change_delta,
+        changed_at: item.changed_at.toISOString(),
+        activated_at: item.activated_at.toISOString(),
+        activation_delay_seconds: item.activation_delay_seconds,
+        block_number: item.block_number,
+      })),
+    };
+  }
+
+  // ============================================================================
+  // DELEGATOR MAPPERS (Endpoints 12-14)
+  // ============================================================================
+
+  mapToDelegatorListItem(delegator: any, totalShares: string): any {
+    // Calculate shares percentage (would need total operator shares)
+    const strategies = (delegator.operator_delegator_shares || []).map(
+      (share: any) => ({
+        strategy_id: share.strategy_id,
+        strategy_name: this.getStrategyName(share.strategies?.address),
+        shares: share.shares.toString(),
+      })
+    );
+
+    return {
+      staker_id: delegator.staker_id,
+      staker_address: delegator.stakers?.address || "",
+      is_delegated: delegator.is_delegated,
+      delegated_at: delegator.delegated_at?.toISOString() || null,
+      undelegated_at: delegator.undelegated_at?.toISOString() || null,
+      total_shares: totalShares,
+      shares_percentage: "0", // Would need to calculate against total operator shares
+      strategies,
+    };
+  }
+
+  mapToDelegatorDetail(delegator: any): any {
+    const totalShares = (delegator.operator_delegator_shares || []).reduce(
+      (sum: number, share: any) => sum + parseFloat(share.shares.toString()),
+      0
+    );
+
+    let delegationDurationDays = null;
+    if (delegator.delegated_at) {
+      const start = new Date(delegator.delegated_at);
+      const end = delegator.undelegated_at
+        ? new Date(delegator.undelegated_at)
+        : new Date();
+      delegationDurationDays = Math.floor(
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+      );
+    }
+
+    const sharesByStrategy = (delegator.operator_delegator_shares || []).map(
+      (share: any) => {
+        const percentage =
+          totalShares > 0
+            ? (
+                (parseFloat(share.shares.toString()) / totalShares) *
+                100
+              ).toFixed(2)
+            : "0";
+
+        return {
+          strategy_id: share.strategy_id,
+          strategy_address: share.strategies?.address || "",
+          strategy_name: this.getStrategyName(share.strategies?.address),
+          shares: share.shares.toString(),
+          shares_percentage: percentage,
+          last_updated_at: share.updated_at?.toISOString() || "",
+        };
+      }
+    );
+
+    return {
+      staker: {
+        staker_id: delegator.staker_id,
+        staker_address: delegator.stakers?.address || "",
+      },
+      delegation: {
+        is_delegated: delegator.is_delegated,
+        delegated_at: delegator.delegated_at?.toISOString() || null,
+        undelegated_at: delegator.undelegated_at?.toISOString() || null,
+        delegation_duration_days: delegationDurationDays,
+      },
+      shares_by_strategy: sharesByStrategy,
+      total_shares: totalShares.toString(),
+    };
+  }
+
+  mapToDelegationHistory(events: any[]): any {
+    return {
+      events: events.map((event) => ({
+        staker_address: event.stakers?.address || "",
+        event_type: event.delegation_type,
+        timestamp: event.event_timestamp.toISOString(),
+        block_number: event.event_block,
+        transaction_hash: event.transaction_hash,
+      })),
+    };
+  }
+
+  // ============================================================================
+  // ALLOCATION MAPPERS (Endpoints 15-16)
+  // ============================================================================
+
+  mapToAllocationsOverview(data: any): any {
+    const { allocations, strategyStates } = data;
+
+    // Group by AVS
+    const byAVSMap = new Map<string, any>();
+    allocations.forEach((alloc: any) => {
+      const avsId = alloc.operator_sets.avs_id;
+      if (!byAVSMap.has(avsId)) {
+        byAVSMap.set(avsId, {
+          avs_id: avsId,
+          avs_name: this.getAVSName(alloc.operator_sets.avs.address),
+          total_allocated: 0,
+          operator_set_count: new Set(),
+          strategies: new Map(),
+        });
+      }
+
+      const avsData = byAVSMap.get(avsId)!;
+      avsData.total_allocated += parseFloat(alloc.magnitude.toString());
+      avsData.operator_set_count.add(alloc.operator_set_id);
+
+      const strategyId = alloc.strategy_id;
+      if (!avsData.strategies.has(strategyId)) {
+        avsData.strategies.set(strategyId, {
+          strategy_id: strategyId,
+          strategy_name: this.getStrategyName(alloc.strategies?.address),
+          allocated_magnitude: 0,
+        });
+      }
+      avsData.strategies.get(strategyId).allocated_magnitude += parseFloat(
+        alloc.magnitude.toString()
+      );
+    });
+
+    const byAVS = Array.from(byAVSMap.values()).map((avs) => ({
+      avs_id: avs.avs_id,
+      avs_name: avs.avs_name,
+      total_allocated: avs.total_allocated.toString(),
+      operator_set_count: avs.operator_set_count.size,
+      strategies: Array.from(avs.strategies.values()).map((s: any) => ({
+        ...s,
+        allocated_magnitude: s.allocated_magnitude.toString(),
+      })),
+    }));
+
+    // Group by strategy
+    const byStrategyMap = new Map<string, any>();
+    allocations.forEach((alloc: any) => {
+      const strategyId = alloc.strategy_id;
+      if (!byStrategyMap.has(strategyId)) {
+        const state = strategyStates.find(
+          (s: any) => s.strategy_id === strategyId
+        );
+        byStrategyMap.set(strategyId, {
+          strategy_id: strategyId,
+          strategy_name: this.getStrategyName(alloc.strategies?.address),
+          total_allocated: 0,
+          max_magnitude: state ? parseFloat(state.max_magnitude.toString()) : 0,
+        });
+      }
+
+      const stratData = byStrategyMap.get(strategyId)!;
+      stratData.total_allocated += parseFloat(alloc.magnitude.toString());
+    });
+
+    const byStrategy = Array.from(byStrategyMap.values()).map((strat) => {
+      const available = strat.max_magnitude - strat.total_allocated;
+      const utilization =
+        strat.max_magnitude > 0
+          ? strat.total_allocated / strat.max_magnitude
+          : 0;
+
+      return {
+        strategy_id: strat.strategy_id,
+        strategy_name: strat.strategy_name,
+        total_allocated: strat.total_allocated.toString(),
+        available_magnitude: available.toString(),
+        utilization_rate: utilization.toFixed(4),
+      };
+    });
+
+    const totalEncumbered = allocations.reduce(
+      (sum: number, a: any) => sum + parseFloat(a.magnitude.toString()),
+      0
+    );
+
+    return {
+      total_allocations: allocations.length,
+      total_encumbered_magnitude: totalEncumbered.toString(),
+      by_avs: byAVS,
+      by_strategy: byStrategy,
+    };
+  }
+
+  mapToDetailedAllocation(allocation: any): any {
+    return {
+      allocation_id: allocation.id,
+      operator_set_id: allocation.operator_set_id,
+      avs_name: this.getAVSName(allocation.operator_sets?.avs?.address),
+      operator_set_number: allocation.operator_sets?.operator_set_id || 0,
+      strategy_id: allocation.strategy_id,
+      strategy_name: this.getStrategyName(allocation.strategies?.address),
+      magnitude: allocation.magnitude.toString(),
+      allocated_at: allocation.allocated_at.toISOString(),
+      effect_block: allocation.effect_block,
+    };
+  }
+
+  // ============================================================================
+  // RISK & ANALYTICS MAPPERS (Endpoints 17-19)
+  // ============================================================================
+
+  mapToRiskAssessment(analytics: any): any {
+    return {
+      assessment_date: analytics.date.toISOString().split("T")[0],
+      risk_score: analytics.risk_score.toString(),
+      risk_level: analytics.risk_level,
+      confidence_score: analytics.confidence_score.toString(),
+      component_scores: {
+        performance_score: analytics.performance_score?.toString() || null,
+        economic_score: analytics.economic_score?.toString() || null,
+        network_position_score:
+          analytics.network_position_score?.toString() || null,
+      },
+      key_metrics: {
+        delegation_hhi: analytics.delegation_hhi?.toString() || null,
+        delegation_volatility_30d:
+          analytics.delegation_volatility_30d?.toString() || null,
+        growth_rate_30d: analytics.growth_rate_30d?.toString() || null,
+        size_percentile: analytics.size_percentile?.toString() || null,
+        slashing_event_count: analytics.slashing_event_count || 0,
+        operational_days: analytics.operational_days || 0,
+      },
+      flags: {
+        is_active: analytics.is_active || false,
+        has_been_slashed: (analytics.slashing_event_count || 0) > 0,
+        has_sufficient_data: analytics.has_sufficient_data || false,
+      },
+    };
+  }
+
+  mapToConcentrationMetrics(metrics: any[]): any {
+    return {
+      metrics: metrics.map((m) => ({
+        concentration_type: m.concentration_type,
+        date: m.date.toISOString().split("T")[0],
+        hhi_value: m.hhi_value?.toString() || "0",
+        gini_coefficient: m.gini_coefficient?.toString() || null,
+        top_1_percentage: m.top_1_percentage?.toString() || null,
+        top_5_percentage: m.top_5_percentage?.toString() || null,
+        top_10_percentage: m.top_10_percentage?.toString() || null,
+        total_entities: m.total_entities || 0,
+        effective_entities: m.effective_entities?.toString() || null,
+      })),
+    };
+  }
+
+  mapToVolatilityMetrics(metrics: any[]): any {
+    return {
+      metrics: metrics.map((m) => ({
+        metric_type: m.metric_type,
+        date: m.date.toISOString().split("T")[0],
+        volatility_7d: m.volatility_7d?.toString() || null,
+        volatility_30d: m.volatility_30d?.toString() || null,
+        volatility_90d: m.volatility_90d?.toString() || null,
+        mean_value: m.mean_value?.toString() || null,
+        coefficient_of_variation:
+          m.coefficient_of_variation?.toString() || null,
+        trend_direction: m.trend_direction?.toString() || null,
+        trend_strength: m.trend_strength?.toString() || null,
+        confidence_score: m.confidence_score?.toString() || null,
+      })),
+    };
+  }
+
+  // ============================================================================
+  // TIME SERIES MAPPERS (Endpoints 20-25)
+  // ============================================================================
+
+  mapToDailySnapshots(snapshots: any[]): any {
+    return {
+      snapshots: snapshots.map((s) => ({
+        date: s.snapshot_date.toISOString().split("T")[0],
+        block_number: s.snapshot_block,
+        delegator_count: s.delegator_count,
+        active_avs_count: s.active_avs_count,
+        active_operator_set_count: s.active_operator_set_count,
+        pi_split_bips: s.pi_split_bips,
+        slash_event_count_to_date: s.slash_event_count_to_date,
+        operational_days: s.operational_days,
+        is_active: s.is_active,
+      })),
+    };
+  }
+
+  mapToStrategyTVSHistory(snapshots: any[], strategyInfo: any): any {
+    return {
+      history: snapshots.map((s) => {
+        const maxMag = parseFloat(s.max_magnitude.toString());
+        const encumbered = parseFloat(
+          s.encumbered_magnitude?.toString() || "0"
+        );
+        const utilization = maxMag > 0 ? encumbered / maxMag : 0;
+
+        return {
+          date: s.snapshot_date.toISOString().split("T")[0],
+          max_magnitude: s.max_magnitude.toString(),
+          encumbered_magnitude: (s.encumbered_magnitude || 0).toString(),
+          utilization_rate: utilization.toFixed(4),
+        };
+      }),
+      strategy: {
+        strategy_id: strategyInfo.strategy_id,
+        strategy_name: this.getStrategyName(strategyInfo.strategies?.address),
+      },
+    };
+  }
+
+  mapToDelegatorSharesHistory(snapshots: any[]): any {
+    return {
+      history: snapshots.map((s) => ({
+        date: s.snapshot_date.toISOString().split("T")[0],
+        strategy_id: s.strategy_id,
+        strategy_name: this.getStrategyName(s.strategies?.address),
+        shares: s.shares.toString(),
+        is_delegated: s.is_delegated,
+      })),
+    };
+  }
+
+  mapToAVSRelationshipTimeline(snapshots: any[]): any {
+    return {
+      timeline: snapshots.map((s) => ({
+        date: s.snapshot_date.toISOString().split("T")[0],
+        current_status: s.current_status,
+        days_registered_to_date: s.days_registered_to_date,
+        current_period_days: s.current_period_days,
+        active_operator_set_count: s.active_operator_set_count,
+        avs_commission_bips: s.avs_commission_bips,
+      })),
+    };
+  }
+
+  mapToAllocationHistory(snapshots: any[]): any {
+    return {
+      history: snapshots.map((s) => ({
+        date: s.snapshot_date.toISOString().split("T")[0],
+        operator_set_id: s.operator_set_id,
+        avs_name: this.getAVSName(s.operator_sets?.avs?.address),
+        strategy_id: s.strategy_id,
+        strategy_name: this.getStrategyName(s.strategies?.address),
+        magnitude: s.magnitude.toString(),
+      })),
+    };
+  }
+
+  mapToSlashingIncidents(incidents: any[]): any {
+    const mapped = incidents.map((incident) => {
+      const amounts = incident.operator_slashing_amounts.map((amt: any) => ({
+        strategy_id: amt.strategy_id,
+        strategy_name: this.getStrategyName(amt.strategies?.address),
+        wad_slashed: amt.wad_slashed.toString(),
+      }));
+
+      return {
+        incident_id: incident.id,
+        operator_set_id: incident.operator_set_id,
+        avs_name: this.getAVSName(incident.operator_sets?.avs?.address),
+        slashed_at: incident.slashed_at.toISOString(),
+        block_number: incident.slashed_at_block,
+        description: incident.description,
+        transaction_hash: incident.transaction_hash,
+        amounts,
+      };
+    });
+
+    const totalAmount = incidents.reduce((sum, inc) => {
+      const incidentTotal = inc.operator_slashing_amounts.reduce(
+        (iSum: number, amt: any) =>
+          iSum + parseFloat(amt.wad_slashed.toString()),
+        0
+      );
+      return sum + incidentTotal;
+    }, 0);
+
+    return {
+      incidents: mapped,
+      summary: {
+        total_incidents: incidents.length,
+        total_amount_slashed: totalAmount.toString(),
+        first_slashed_at:
+          incidents.length > 0
+            ? incidents[incidents.length - 1].slashed_at.toISOString()
+            : null,
+        last_slashed_at:
+          incidents.length > 0 ? incidents[0].slashed_at.toISOString() : null,
+      },
+    };
+  }
+
+  // ============================================================================
+  // COMPARISON MAPPERS (Endpoints 26-28)
+  // ============================================================================
+
+  mapToOperatorsComparison(operators: any[], requestedMetrics?: string[]): any {
+    const defaultMetrics = [
+      "tvs",
+      "delegators",
+      "avs_count",
+      "commission",
+      "risk_score",
+    ];
+    const metrics = requestedMetrics || defaultMetrics;
+
+    const comparisonDate = new Date().toISOString();
+
+    const mapped = operators.map((op) => {
+      const state = op.operator_state;
+      const analytics = op.operator_analytics?.[0];
+      const metadata = op.operator_metadata;
+
+      // Calculate TVS
+      const totalTVS = this.calculateTotalTVS(op.operator_strategy_state);
+
+      const operatorMetrics: any = {};
+
+      if (metrics.includes("tvs")) {
+        operatorMetrics.tvs = totalTVS;
+      }
+      if (
+        metrics.includes("delegators") ||
+        metrics.includes("delegator_count")
+      ) {
+        operatorMetrics.delegator_count = state?.active_delegators || 0;
+      }
+      if (metrics.includes("avs_count")) {
+        operatorMetrics.active_avs_count = state?.active_avs_count || 0;
+      }
+      if (metrics.includes("commission")) {
+        operatorMetrics.pi_commission_bips = state?.current_pi_split_bips || 0;
+      }
+      if (metrics.includes("risk_score")) {
+        operatorMetrics.risk_score = analytics?.risk_score?.toString() || "0";
+      }
+      if (metrics.includes("operational_days")) {
+        operatorMetrics.operational_days = state?.operational_days || 0;
+      }
+
+      return {
+        operator_id: op.id,
+        operator_address: op.address,
+        operator_name: metadata?.metadata_json?.name || null,
+        metrics: operatorMetrics,
+      };
+    });
+
+    return {
+      operators: mapped,
+      comparison_date: comparisonDate,
+    };
+  }
+
+  mapToOperatorRankings(data: any): any {
+    const { operator, allOperators } = data;
+
+    // Calculate TVS for operator
+    const operatorTVS = this.calculateTotalTVS(
+      operator.operator_strategy_state
+    );
+    const operatorDelegators = operator.operator_state?.active_delegators || 0;
+    const operatorAVS = operator.operator_state?.active_avs_count || 0;
+    const operatorDays = operator.operator_state?.operational_days || 0;
+    const operatorRisk = parseFloat(
+      operator.operator_analytics[0]?.risk_score?.toString() || "0"
+    );
+
+    // Calculate percentiles
+    const allTVS = allOperators.map((op: any) =>
+      parseFloat(this.calculateTotalTVS(op.operator_strategy_state))
+    );
+    const allDelegators = allOperators.map(
+      (op: any) => op.operator_state?.active_delegators || 0
+    );
+    const allAVS = allOperators.map(
+      (op: any) => op.operator_state?.active_avs_count || 0
+    );
+    const allDays = allOperators.map(
+      (op: any) => op.operator_state?.operational_days || 0
+    );
+    const allRisk = allOperators.map((op: any) =>
+      parseFloat(op.operator_analytics[0]?.risk_score?.toString() || "0")
+    );
+
+    return {
+      rankings: {
+        tvs_percentile: this.calculatePercentile(
+          allTVS,
+          parseFloat(operatorTVS)
+        ).toFixed(2),
+        delegator_count_percentile: this.calculatePercentile(
+          allDelegators,
+          operatorDelegators
+        ).toFixed(2),
+        avs_count_percentile: this.calculatePercentile(
+          allAVS,
+          operatorAVS
+        ).toFixed(2),
+        operational_days_percentile: this.calculatePercentile(
+          allDays,
+          operatorDays
+        ).toFixed(2),
+        risk_score_percentile: this.calculatePercentile(
+          allRisk,
+          operatorRisk
+        ).toFixed(2),
+      },
+      absolute_values: {
+        tvs: operatorTVS,
+        delegator_count: operatorDelegators,
+        avs_count: operatorAVS,
+        operational_days: operatorDays,
+        risk_score: operatorRisk.toString(),
+      },
+      network_stats: {
+        total_operators: allOperators.length,
+        active_operators: allOperators.filter(
+          (op: any) => op.operator_state?.is_active
+        ).length,
+      },
+      date:
+        operator.operator_analytics[0]?.date.toISOString().split("T")[0] ||
+        new Date().toISOString().split("T")[0],
+    };
+  }
+
+  private calculatePercentile(values: number[], target: number): number {
+    const sorted = values.slice().sort((a, b) => a - b);
+    const index = sorted.findIndex((v) => v >= target);
+    if (index === -1) return 100;
+    return (index / sorted.length) * 100;
+  }
+
+  mapToNetworkComparison(operator: any, networkAvg: any): any {
+    const state = operator.operator_state;
+    const operatorTVS = this.calculateTotalTVS(
+      operator.operator_strategy_state
+    );
+    const operatorDelegators = state?.active_delegators || 0;
+    const operatorAVS = state?.active_avs_count || 0;
+    const operatorCommission = state?.current_pi_split_bips || 0;
+
+    const meanTVS = parseFloat(networkAvg.mean_tvs?.toString() || "0");
+    const medianTVS = parseFloat(networkAvg.median_tvs?.toString() || "0");
+    const meanDelegators = parseFloat(
+      networkAvg.mean_delegators_per_operator?.toString() || "0"
+    );
+    const medianDelegators = parseFloat(
+      networkAvg.median_delegators_per_operator?.toString() || "0"
+    );
+    const meanAVS = parseFloat(
+      networkAvg.mean_avs_per_operator?.toString() || "0"
+    );
+    const meanCommission = parseFloat(
+      networkAvg.mean_pi_commission_bips?.toString() || "0"
+    );
+
+    return {
+      operator_metrics: {
+        tvs: operatorTVS,
+        delegator_count: operatorDelegators,
+        avs_count: operatorAVS,
+        pi_commission_bips: operatorCommission,
+      },
+      network_averages: {
+        mean_tvs: meanTVS.toString(),
+        median_tvs: medianTVS.toString(),
+        mean_delegators: meanDelegators.toString(),
+        median_delegators: medianDelegators.toString(),
+        mean_avs: meanAVS.toString(),
+        mean_pi_commission: meanCommission.toString(),
+      },
+      differences: {
+        tvs_vs_mean: (parseFloat(operatorTVS) - meanTVS).toString(),
+        tvs_vs_median: (parseFloat(operatorTVS) - medianTVS).toString(),
+        delegators_vs_mean: (operatorDelegators - meanDelegators).toString(),
+        avs_vs_mean: (operatorAVS - meanAVS).toString(),
+      },
+      date: networkAvg.snapshot_date.toISOString().split("T")[0],
+    };
+  }
 }

@@ -317,4 +317,535 @@ export class OperatorService extends BaseService<any> {
 
     return this.operatorMapper.mapToAVSRegistrationHistory(history);
   }
+
+  // ============================================================================
+  // COMMISSION METHODS (Endpoints 10-11)
+  // ============================================================================
+
+  async getCommissionOverview(operatorId: string): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const commissions =
+      await this.operatorRepository.findCommissionOverview(operatorId);
+
+    return this.operatorMapper.mapToCommissionOverview(commissions);
+  }
+
+  async getCommissionHistory(
+    operatorId: string,
+    filters: {
+      commission_type?: string;
+      avs_id?: string;
+      date_from?: string;
+      date_to?: string;
+    }
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedFilters = {
+      commission_type: filters.commission_type,
+      avs_id: filters.avs_id,
+      date_from: filters.date_from ? new Date(filters.date_from) : undefined,
+      date_to: filters.date_to ? new Date(filters.date_to) : undefined,
+    };
+
+    // Validate date range if provided
+    if (parsedFilters.date_from && parsedFilters.date_to) {
+      this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
+    }
+
+    const history = await this.operatorRepository.findCommissionHistory(
+      operatorId,
+      parsedFilters
+    );
+
+    return this.operatorMapper.mapToCommissionHistory(history);
+  }
+
+  // ============================================================================
+  // DELEGATOR METHODS (Endpoints 12-14)
+  // ============================================================================
+
+  async listDelegators(
+    operatorId: string,
+    filters: {
+      status?: string;
+      min_shares?: number;
+      max_shares?: number;
+    },
+    pagination: { limit: number; offset: number },
+    sortBy: string = "shares",
+    sortOrder: "asc" | "desc" = "desc"
+  ): Promise<{ delegators: any[]; summary: any }> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const [delegators, summary] = await Promise.all([
+      this.operatorRepository.findDelegators(
+        operatorId,
+        filters,
+        pagination,
+        sortBy,
+        sortOrder
+      ),
+      this.operatorRepository.getDelegatorsSummary(operatorId),
+    ]);
+
+    // Map delegators with calculated total shares
+    const mapped = delegators.map((d) => {
+      const totalShares = (d.operator_delegator_shares || [])
+        .reduce(
+          (sum: number, share: any) =>
+            sum + parseFloat(share.shares.toString()),
+          0
+        )
+        .toString();
+      return this.operatorMapper.mapToDelegatorListItem(d, totalShares);
+    });
+
+    return {
+      delegators: mapped,
+      summary,
+    };
+  }
+
+  async getDelegatorDetail(operatorId: string, stakerId: string): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const delegator = await this.operatorRepository.findDelegatorDetail(
+      operatorId,
+      stakerId
+    );
+
+    if (!delegator) {
+      throw new Error(
+        `Delegator ${stakerId} not found for operator ${operatorId}`
+      );
+    }
+
+    return this.operatorMapper.mapToDelegatorDetail(delegator);
+  }
+
+  async getDelegationHistory(
+    operatorId: string,
+    filters: {
+      event_type?: string;
+      date_from?: string;
+      date_to?: string;
+    },
+    pagination: { limit: number; offset: number }
+  ): Promise<{ events: any[]; total: number }> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedFilters = {
+      event_type: filters.event_type,
+      date_from: filters.date_from ? new Date(filters.date_from) : undefined,
+      date_to: filters.date_to ? new Date(filters.date_to) : undefined,
+    };
+
+    // Validate date range if provided
+    if (parsedFilters.date_from && parsedFilters.date_to) {
+      this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
+    }
+
+    const [events, total] = await Promise.all([
+      this.operatorRepository.findDelegationHistory(
+        operatorId,
+        parsedFilters,
+        pagination
+      ),
+      this.operatorRepository.countDelegationHistory(operatorId, parsedFilters),
+    ]);
+
+    const mapped = this.operatorMapper.mapToDelegationHistory(events);
+
+    return {
+      events: mapped.events,
+      total,
+    };
+  }
+
+  // ============================================================================
+  // ALLOCATION METHODS (Endpoints 15-16)
+  // ============================================================================
+
+  async getAllocationsOverview(operatorId: string): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const data =
+      await this.operatorRepository.findAllocationsOverview(operatorId);
+
+    return this.operatorMapper.mapToAllocationsOverview(data);
+  }
+
+  async listDetailedAllocations(
+    operatorId: string,
+    filters: {
+      avs_id?: string;
+      strategy_id?: string;
+      min_magnitude?: number;
+      max_magnitude?: number;
+    },
+    pagination: { limit: number; offset: number },
+    sortBy: string = "magnitude",
+    sortOrder: "asc" | "desc" = "desc"
+  ): Promise<{ allocations: any[]; total: number }> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const [allocations, total] = await Promise.all([
+      this.operatorRepository.findDetailedAllocations(
+        operatorId,
+        filters,
+        pagination,
+        sortBy,
+        sortOrder
+      ),
+      this.operatorRepository.countDetailedAllocations(operatorId, filters),
+    ]);
+
+    const mapped = allocations.map((alloc) =>
+      this.operatorMapper.mapToDetailedAllocation(alloc)
+    );
+
+    return {
+      allocations: mapped,
+      total,
+    };
+  }
+
+  // ============================================================================
+  // RISK & ANALYTICS METHODS (Endpoints 17-19)
+  // ============================================================================
+
+  async getRiskAssessment(operatorId: string, date?: string): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+    const analytics = await this.operatorRepository.findRiskAssessment(
+      operatorId,
+      parsedDate
+    );
+
+    if (!analytics) {
+      throw new Error(
+        `No risk assessment found for operator ${operatorId}${date ? ` on ${date}` : ""}`
+      );
+    }
+
+    return this.operatorMapper.mapToRiskAssessment(analytics);
+  }
+
+  async getConcentrationMetrics(
+    operatorId: string,
+    concentrationType: string,
+    date?: string
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+    const metrics = await this.operatorRepository.findConcentrationMetrics(
+      operatorId,
+      concentrationType,
+      parsedDate
+    );
+
+    return this.operatorMapper.mapToConcentrationMetrics(metrics);
+  }
+
+  async getVolatilityMetrics(
+    operatorId: string,
+    metricType: string,
+    date?: string
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+    const metrics = await this.operatorRepository.findVolatilityMetrics(
+      operatorId,
+      metricType,
+      parsedDate
+    );
+
+    return this.operatorMapper.mapToVolatilityMetrics(metrics);
+  }
+
+  // ============================================================================
+  // TIME SERIES METHODS (Endpoints 20-25)
+  // ============================================================================
+
+  async getDailySnapshots(
+    operatorId: string,
+    dateFrom: string,
+    dateTo: string
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDateFrom = new Date(dateFrom);
+    const parsedDateTo = new Date(dateTo);
+
+    this.validateDateRange(parsedDateFrom, parsedDateTo);
+
+    const snapshots = await this.operatorRepository.findDailySnapshots(
+      operatorId,
+      parsedDateFrom,
+      parsedDateTo
+    );
+
+    return this.operatorMapper.mapToDailySnapshots(snapshots);
+  }
+
+  async getStrategyTVSHistory(
+    operatorId: string,
+    strategyId: string,
+    dateFrom: string,
+    dateTo: string
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDateFrom = new Date(dateFrom);
+    const parsedDateTo = new Date(dateTo);
+
+    this.validateDateRange(parsedDateFrom, parsedDateTo);
+
+    const snapshots = await this.operatorRepository.findStrategyTVSHistory(
+      operatorId,
+      strategyId,
+      parsedDateFrom,
+      parsedDateTo
+    );
+
+    if (snapshots.length === 0) {
+      throw new Error(
+        `No history found for strategy ${strategyId} of operator ${operatorId}`
+      );
+    }
+
+    return this.operatorMapper.mapToStrategyTVSHistory(snapshots, snapshots[0]);
+  }
+
+  async getDelegatorSharesHistory(
+    operatorId: string,
+    stakerId: string,
+    filters: {
+      strategy_id?: string;
+      date_from?: string;
+      date_to?: string;
+    }
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedFilters = {
+      strategy_id: filters.strategy_id,
+      date_from: filters.date_from ? new Date(filters.date_from) : undefined,
+      date_to: filters.date_to ? new Date(filters.date_to) : undefined,
+    };
+
+    if (parsedFilters.date_from && parsedFilters.date_to) {
+      this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
+    }
+
+    const snapshots = await this.operatorRepository.findDelegatorSharesHistory(
+      operatorId,
+      stakerId,
+      parsedFilters
+    );
+
+    return this.operatorMapper.mapToDelegatorSharesHistory(snapshots);
+  }
+
+  async getAVSRelationshipTimeline(
+    operatorId: string,
+    avsId: string,
+    dateFrom: string,
+    dateTo: string
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDateFrom = new Date(dateFrom);
+    const parsedDateTo = new Date(dateTo);
+
+    this.validateDateRange(parsedDateFrom, parsedDateTo);
+
+    const snapshots = await this.operatorRepository.findAVSRelationshipTimeline(
+      operatorId,
+      avsId,
+      parsedDateFrom,
+      parsedDateTo
+    );
+
+    return this.operatorMapper.mapToAVSRelationshipTimeline(snapshots);
+  }
+
+  async getAllocationHistory(
+    operatorId: string,
+    filters: {
+      operator_set_id?: string;
+      strategy_id?: string;
+      date_from: string;
+      date_to: string;
+    }
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDateFrom = new Date(filters.date_from);
+    const parsedDateTo = new Date(filters.date_to);
+
+    this.validateDateRange(parsedDateFrom, parsedDateTo);
+
+    const snapshots = await this.operatorRepository.findAllocationHistory(
+      operatorId,
+      {
+        operator_set_id: filters.operator_set_id,
+        strategy_id: filters.strategy_id,
+        date_from: parsedDateFrom,
+        date_to: parsedDateTo,
+      }
+    );
+
+    return this.operatorMapper.mapToAllocationHistory(snapshots);
+  }
+
+  async getSlashingIncidents(operatorId: string): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const incidents =
+      await this.operatorRepository.findSlashingIncidents(operatorId);
+
+    return this.operatorMapper.mapToSlashingIncidents(incidents);
+  }
+
+  // ============================================================================
+  // COMPARISON METHODS (Endpoints 26-28)
+  // ============================================================================
+
+  async compareOperators(dto: {
+    operator_ids: string[];
+    metrics?: string[];
+  }): Promise<any> {
+    // Validate we have 2-5 operators
+    if (dto.operator_ids.length < 2 || dto.operator_ids.length > 5) {
+      throw new Error("Must compare between 2 and 5 operators");
+    }
+
+    // Check for duplicates
+    const uniqueIds = new Set(dto.operator_ids);
+    if (uniqueIds.size !== dto.operator_ids.length) {
+      throw new Error("Duplicate operator IDs are not allowed");
+    }
+
+    const operators = await this.operatorRepository.findOperatorsForComparison(
+      dto.operator_ids
+    );
+
+    // Verify all operators were found
+    if (operators.length !== dto.operator_ids.length) {
+      const foundIds = operators.map((op) => op.id);
+      const missingIds = dto.operator_ids.filter(
+        (id) => !foundIds.includes(id)
+      );
+      throw new Error(`Operators not found: ${missingIds.join(", ")}`);
+    }
+
+    return this.operatorMapper.mapToOperatorsComparison(operators, dto.metrics);
+  }
+
+  async getOperatorRankings(operatorId: string, date?: string): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+
+    const data = await this.operatorRepository.calculateOperatorPercentiles(
+      operatorId,
+      parsedDate
+    );
+
+    if (!data) {
+      throw new Error(`No ranking data available for operator ${operatorId}`);
+    }
+
+    return this.operatorMapper.mapToOperatorRankings(data);
+  }
+
+  async compareOperatorToNetwork(
+    operatorId: string,
+    date?: string
+  ): Promise<any> {
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+
+    const [operatorData, networkAvg] = await Promise.all([
+      this.operatorRepository.findById(operatorId),
+      this.operatorRepository.getNetworkAverages(parsedDate),
+    ]);
+
+    if (!networkAvg) {
+      throw new Error("Network averages not available");
+    }
+
+    return this.operatorMapper.mapToNetworkComparison(operatorData, networkAvg);
+  }
 }

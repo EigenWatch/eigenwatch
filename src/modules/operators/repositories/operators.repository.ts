@@ -654,4 +654,875 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
       });
     });
   }
+
+  // ============================================================================
+  // COMMISSION QUERIES (Endpoints 10-11)
+  // ============================================================================
+
+  async findCommissionOverview(operatorId: string): Promise<any> {
+    return this.execute(async () => {
+      const commissions = await this.prisma.operator_commission_rates.findMany({
+        where: { operator_id: operatorId },
+        include: {
+          avs: true,
+          operator_sets: {
+            include: { avs: true },
+          },
+        },
+      });
+
+      return commissions;
+    });
+  }
+
+  async findCommissionHistory(
+    operatorId: string,
+    filters: {
+      commission_type?: string;
+      avs_id?: string;
+      date_from?: Date;
+      date_to?: Date;
+    }
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.commission_type) {
+        where.commission_type = filters.commission_type;
+      }
+
+      if (filters.avs_id) {
+        where.avs_id = filters.avs_id;
+      }
+
+      if (filters.date_from || filters.date_to) {
+        where.changed_at = {};
+        if (filters.date_from) {
+          where.changed_at.gte = filters.date_from;
+        }
+        if (filters.date_to) {
+          where.changed_at.lte = filters.date_to;
+        }
+      }
+
+      return this.prisma.operator_commission_history.findMany({
+        where,
+        include: {
+          avs: true,
+          operator_sets: {
+            include: { avs: true },
+          },
+        },
+        orderBy: { changed_at: "desc" },
+      });
+    });
+  }
+
+  // ============================================================================
+  // DELEGATOR QUERIES (Endpoints 12-14)
+  // ============================================================================
+
+  async findDelegators(
+    operatorId: string,
+    filters: {
+      status?: string;
+      min_shares?: number;
+      max_shares?: number;
+    },
+    pagination: { limit: number; offset: number },
+    sortBy: string = "shares",
+    sortOrder: "asc" | "desc" = "desc"
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.status !== "all") {
+        where.is_delegated = filters.status === "active";
+      }
+
+      // Get delegators
+      const delegators = await this.prisma.operator_delegators.findMany({
+        where,
+        include: {
+          stakers: true,
+        },
+      });
+
+      // TODO: Optimize the db schema so one does not have to do all these calculations here (try to expose operator_delegator_shares, calculate min and max in pipeline )
+      // Fetch shares separately because generated Prisma include type doesn't expose
+      // operator_delegator_shares on operator_delegators include type.
+      const stakerIds = delegators.map((d) => d.staker_id);
+      const shares =
+        stakerIds.length > 0
+          ? await this.prisma.operator_delegator_shares.findMany({
+              where: {
+                operator_id: operatorId,
+                staker_id: { in: stakerIds },
+              },
+            })
+          : [];
+
+      const sharesByStaker = shares.reduce((acc, s) => {
+        const arr = acc.get(s.staker_id) || [];
+        arr.push(s);
+        acc.set(s.staker_id, arr);
+        return acc;
+      }, new Map<string, any[]>());
+
+      // Calculate total shares for each delegator
+      const delegatorsWithShares = delegators.map((d) => {
+        const stakerShares = sharesByStaker.get(d.staker_id) || [];
+        const totalShares = stakerShares.reduce(
+          (sum, s) => sum + parseFloat(s.shares.toString()),
+          0
+        );
+        return { ...d, operator_delegator_shares: stakerShares, totalShares };
+      });
+
+      // Apply share filters
+      let filtered = delegatorsWithShares;
+      if (filters.min_shares !== undefined) {
+        filtered = filtered.filter((d) => d.totalShares >= filters.min_shares!);
+      }
+      if (filters.max_shares !== undefined) {
+        filtered = filtered.filter((d) => d.totalShares <= filters.max_shares!);
+      }
+
+      // Apply sorting
+      if (sortBy === "shares") {
+        filtered.sort((a, b) =>
+          sortOrder === "desc"
+            ? b.totalShares - a.totalShares
+            : a.totalShares - b.totalShares
+        );
+      } else if (sortBy === "delegation_date") {
+        filtered.sort((a, b) => {
+          const dateA = a.delegated_at ? new Date(a.delegated_at).getTime() : 0;
+          const dateB = b.delegated_at ? new Date(b.delegated_at).getTime() : 0;
+          return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+        });
+      }
+
+      // Apply pagination
+      return filtered.slice(
+        pagination.offset,
+        pagination.offset + pagination.limit
+      );
+    });
+  }
+
+  async countDelegators(
+    operatorId: string,
+    filters: {
+      status?: string;
+      min_shares?: number;
+      max_shares?: number;
+    }
+  ): Promise<number> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.status !== "all") {
+        where.is_delegated = filters.status === "active";
+      }
+
+      if (
+        filters.min_shares === undefined &&
+        filters.max_shares === undefined
+      ) {
+        return this.prisma.operator_delegators.count({ where });
+      }
+
+      // Need to filter by shares - fetch all and filter
+      const delegators = await this.prisma.operator_delegators.findMany({
+        where,
+        include: {
+          stakers: true,
+        },
+      });
+
+      const stakerIds = delegators.map((d) => d.staker_id);
+      const shares =
+        stakerIds.length > 0
+          ? await this.prisma.operator_delegator_shares.findMany({
+              where: {
+                operator_id: operatorId,
+                staker_id: { in: stakerIds },
+              },
+            })
+          : [];
+
+      const sharesByStaker = shares.reduce((acc, s) => {
+        const arr = acc.get(s.staker_id) || [];
+        arr.push(s);
+        acc.set(s.staker_id, arr);
+        return acc;
+      }, new Map<string, any[]>());
+
+      const delegatorsWithShares = delegators.map((d) => {
+        const stakerShares = sharesByStaker.get(d.staker_id) || [];
+        const totalShares = stakerShares.reduce(
+          (sum, s) => sum + parseFloat(s.shares.toString()),
+          0
+        );
+        return { ...d, totalShares };
+      });
+
+      let filtered = delegatorsWithShares;
+      if (filters.min_shares !== undefined) {
+        filtered = filtered.filter((d) => d.totalShares >= filters.min_shares!);
+      }
+      if (filters.max_shares !== undefined) {
+        filtered = filtered.filter((d) => d.totalShares <= filters.max_shares!);
+      }
+
+      return filtered.length;
+    });
+  }
+
+  async getDelegatorsSummary(operatorId: string): Promise<any> {
+    return this.execute(async () => {
+      const [totalDelegators, activeDelegators, sharesData] = await Promise.all(
+        [
+          this.prisma.operator_delegators.count({
+            where: { operator_id: operatorId },
+          }),
+          this.prisma.operator_delegators.count({
+            where: { operator_id: operatorId, is_delegated: true },
+          }),
+          this.prisma.operator_delegator_shares.aggregate({
+            where: { operator_id: operatorId },
+            _sum: { shares: true },
+          }),
+        ]
+      );
+
+      return {
+        total_delegators: totalDelegators,
+        active_delegators: activeDelegators,
+        total_shares: sharesData._sum.shares?.toString() || "0",
+      };
+    });
+  }
+
+  async findDelegatorDetail(
+    operatorId: string,
+    stakerId: string
+  ): Promise<any | null> {
+    return this.execute(async () => {
+      const delegator = await this.prisma.operator_delegators.findFirst({
+        where: {
+          operator_id: operatorId,
+          staker_id: stakerId,
+        },
+        include: {
+          stakers: true,
+        },
+      });
+
+      if (!delegator) return null;
+
+      // Fetch shares separately because operator_delegator_shares is not available
+      // on the generated include type for operator_delegators.
+      const shares = await this.prisma.operator_delegator_shares.findMany({
+        where: {
+          operator_id: operatorId,
+          staker_id: stakerId,
+        },
+        include: {
+          strategies: true,
+        },
+      });
+
+      return { ...delegator, operator_delegator_shares: shares };
+    });
+  }
+
+  async findDelegationHistory(
+    operatorId: string,
+    filters: {
+      event_type?: string;
+      date_from?: Date;
+      date_to?: Date;
+    },
+    pagination: { limit: number; offset: number }
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.event_type && filters.event_type !== "all") {
+        where.delegation_type = filters.event_type;
+      }
+
+      if (filters.date_from || filters.date_to) {
+        where.event_timestamp = {};
+        if (filters.date_from) {
+          where.event_timestamp.gte = filters.date_from;
+        }
+        if (filters.date_to) {
+          where.event_timestamp.lte = filters.date_to;
+        }
+      }
+
+      return this.prisma.operator_delegator_history.findMany({
+        where,
+        include: {
+          stakers: true,
+        },
+        orderBy: { event_timestamp: "desc" },
+        ...this.buildPagination(pagination.limit, pagination.offset),
+      });
+    });
+  }
+
+  async countDelegationHistory(
+    operatorId: string,
+    filters: {
+      event_type?: string;
+      date_from?: Date;
+      date_to?: Date;
+    }
+  ): Promise<number> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.event_type && filters.event_type !== "all") {
+        where.delegation_type = filters.event_type;
+      }
+
+      if (filters.date_from || filters.date_to) {
+        where.event_timestamp = {};
+        if (filters.date_from) {
+          where.event_timestamp.gte = filters.date_from;
+        }
+        if (filters.date_to) {
+          where.event_timestamp.lte = filters.date_to;
+        }
+      }
+
+      return this.prisma.operator_delegator_history.count({ where });
+    });
+  }
+
+  // ============================================================================
+  // ALLOCATION QUERIES (Endpoints 15-16)
+  // ============================================================================
+
+  async findAllocationsOverview(operatorId: string): Promise<any> {
+    return this.execute(async () => {
+      // Get all allocations
+      const allocations = await this.prisma.operator_allocations.findMany({
+        where: { operator_id: operatorId },
+        include: {
+          operator_sets: {
+            include: { avs: true },
+          },
+          strategies: true,
+        },
+      });
+
+      // Get strategy states for available magnitude
+      const strategyStates = await this.prisma.operator_strategy_state.findMany(
+        {
+          where: { operator_id: operatorId },
+          include: { strategies: true },
+        }
+      );
+
+      return { allocations, strategyStates };
+    });
+  }
+
+  async findDetailedAllocations(
+    operatorId: string,
+    filters: {
+      avs_id?: string;
+      strategy_id?: string;
+      min_magnitude?: number;
+      max_magnitude?: number;
+    },
+    pagination: { limit: number; offset: number },
+    sortBy: string = "magnitude",
+    sortOrder: "asc" | "desc" = "desc"
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.strategy_id) {
+        where.strategy_id = filters.strategy_id;
+      }
+
+      // Get all allocations first
+      const allocations = await this.prisma.operator_allocations.findMany({
+        where,
+        include: {
+          operator_sets: {
+            include: { avs: true },
+          },
+          strategies: true,
+        },
+      });
+
+      // Apply filters
+      let filtered = allocations;
+
+      if (filters.avs_id) {
+        filtered = filtered.filter(
+          (a) => a.operator_sets.avs_id === filters.avs_id
+        );
+      }
+
+      if (filters.min_magnitude !== undefined) {
+        filtered = filtered.filter(
+          (a) => parseFloat(a.magnitude.toString()) >= filters.min_magnitude!
+        );
+      }
+
+      if (filters.max_magnitude !== undefined) {
+        filtered = filtered.filter(
+          (a) => parseFloat(a.magnitude.toString()) <= filters.max_magnitude!
+        );
+      }
+
+      // Apply sorting
+      const sorted = this.sortAllocations(filtered, sortBy, sortOrder);
+
+      // Apply pagination
+      return sorted.slice(
+        pagination.offset,
+        pagination.offset + pagination.limit
+      );
+    });
+  }
+
+  async countDetailedAllocations(
+    operatorId: string,
+    filters: {
+      avs_id?: string;
+      strategy_id?: string;
+      min_magnitude?: number;
+      max_magnitude?: number;
+    }
+  ): Promise<number> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (filters.strategy_id) {
+        where.strategy_id = filters.strategy_id;
+      }
+
+      if (
+        !filters.avs_id &&
+        filters.min_magnitude === undefined &&
+        filters.max_magnitude === undefined
+      ) {
+        return this.prisma.operator_allocations.count({ where });
+      }
+
+      // Need to filter - fetch all
+      const allocations = await this.prisma.operator_allocations.findMany({
+        where,
+        include: {
+          operator_sets: true,
+        },
+      });
+
+      let filtered = allocations;
+
+      if (filters.avs_id) {
+        filtered = filtered.filter(
+          (a) => a.operator_sets.avs_id === filters.avs_id
+        );
+      }
+
+      if (filters.min_magnitude !== undefined) {
+        filtered = filtered.filter(
+          (a) => parseFloat(a.magnitude.toString()) >= filters.min_magnitude!
+        );
+      }
+
+      if (filters.max_magnitude !== undefined) {
+        filtered = filtered.filter(
+          (a) => parseFloat(a.magnitude.toString()) <= filters.max_magnitude!
+        );
+      }
+
+      return filtered.length;
+    });
+  }
+
+  private sortAllocations(
+    allocations: any[],
+    sortBy: string,
+    sortOrder: "asc" | "desc"
+  ): any[] {
+    return allocations.sort((a, b) => {
+      let compareResult = 0;
+
+      switch (sortBy) {
+        case "magnitude":
+          compareResult =
+            parseFloat(a.magnitude.toString()) -
+            parseFloat(b.magnitude.toString());
+          break;
+        case "effect_block":
+          compareResult = a.effect_block - b.effect_block;
+          break;
+        case "allocated_at":
+          compareResult =
+            new Date(a.allocated_at).getTime() -
+            new Date(b.allocated_at).getTime();
+          break;
+        default:
+          compareResult = 0;
+      }
+
+      return sortOrder === "desc" ? -compareResult : compareResult;
+    });
+  }
+
+  // ============================================================================
+  // RISK & ANALYTICS QUERIES (Endpoints 17-19)
+  // ============================================================================
+
+  async findRiskAssessment(
+    operatorId: string,
+    date?: Date
+  ): Promise<any | null> {
+    return this.execute(async () => {
+      const where: any = { operator_id: operatorId };
+
+      if (date) {
+        where.date = date;
+      } else {
+        // Get latest assessment
+        const latest = await this.prisma.operator_analytics.findFirst({
+          where: { operator_id: operatorId },
+          orderBy: { date: "desc" },
+        });
+
+        if (!latest) return null;
+        where.date = latest.date;
+      }
+
+      return this.prisma.operator_analytics.findFirst({ where });
+    });
+  }
+
+  async findConcentrationMetrics(
+    operatorId: string,
+    concentrationType: string,
+    date?: Date
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = {
+        entity_type: "operator",
+        entity_id: operatorId,
+        concentration_type: concentrationType,
+      };
+
+      if (date) {
+        where.date = date;
+      } else {
+        // Get latest metrics
+        const latest = await this.prisma.concentration_metrics.findFirst({
+          where: {
+            entity_type: "operator",
+            entity_id: operatorId,
+            concentration_type: concentrationType,
+          },
+          orderBy: { date: "desc" },
+        });
+
+        if (!latest) return [];
+        where.date = latest.date;
+      }
+
+      return this.prisma.concentration_metrics.findMany({
+        where,
+        orderBy: { date: "desc" },
+      });
+    });
+  }
+
+  async findVolatilityMetrics(
+    operatorId: string,
+    metricType: string,
+    date?: Date
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = {
+        entity_type: "operator",
+        entity_id: operatorId,
+        metric_type: metricType,
+      };
+
+      if (date) {
+        where.date = date;
+      } else {
+        // Get latest metrics
+        const latest = await this.prisma.volatility_metrics.findFirst({
+          where: {
+            entity_type: "operator",
+            entity_id: operatorId,
+            metric_type: metricType,
+          },
+          orderBy: { date: "desc" },
+        });
+
+        if (!latest) return [];
+        where.date = latest.date;
+      }
+
+      return this.prisma.volatility_metrics.findMany({
+        where,
+        orderBy: { date: "desc" },
+      });
+    });
+  }
+
+  // ============================================================================
+  // TIME SERIES QUERIES (Endpoints 20-25)
+  // ============================================================================
+
+  // In PrismaOperatorRepository class:
+
+  async findDailySnapshots(
+    operatorId: string,
+    dateFrom: Date,
+    dateTo: Date
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operator_daily_snapshots.findMany({
+        where: {
+          operator_id: operatorId,
+          snapshot_date: {
+            gte: dateFrom,
+            lte: dateTo,
+          },
+        },
+        orderBy: { snapshot_date: "asc" },
+      });
+    });
+  }
+
+  async findStrategyTVSHistory(
+    operatorId: string,
+    strategyId: string,
+    dateFrom: Date,
+    dateTo: Date
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operator_strategy_daily_snapshots.findMany({
+        where: {
+          operator_id: operatorId,
+          strategy_id: strategyId,
+          snapshot_date: {
+            gte: dateFrom,
+            lte: dateTo,
+          },
+        },
+        include: {
+          strategies: true,
+        },
+        orderBy: { snapshot_date: "asc" },
+      });
+    });
+  }
+
+  async findDelegatorSharesHistory(
+    operatorId: string,
+    stakerId: string,
+    filters: {
+      strategy_id?: string;
+      date_from?: Date;
+      date_to?: Date;
+    }
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = {
+        operator_id: operatorId,
+        staker_id: stakerId,
+      };
+
+      if (filters.strategy_id) {
+        where.strategy_id = filters.strategy_id;
+      }
+
+      if (filters.date_from || filters.date_to) {
+        where.snapshot_date = {};
+        if (filters.date_from) {
+          where.snapshot_date.gte = filters.date_from;
+        }
+        if (filters.date_to) {
+          where.snapshot_date.lte = filters.date_to;
+        }
+      }
+
+      return this.prisma.operator_delegator_shares_snapshots.findMany({
+        where,
+        include: {
+          strategies: true,
+        },
+        orderBy: { snapshot_date: "asc" },
+      });
+    });
+  }
+
+  async findAVSRelationshipTimeline(
+    operatorId: string,
+    avsId: string,
+    dateFrom: Date,
+    dateTo: Date
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operator_avs_relationship_snapshots.findMany({
+        where: {
+          operator_id: operatorId,
+          avs_id: avsId,
+          snapshot_date: {
+            gte: dateFrom,
+            lte: dateTo,
+          },
+        },
+        orderBy: { snapshot_date: "asc" },
+      });
+    });
+  }
+
+  async findAllocationHistory(
+    operatorId: string,
+    filters: {
+      operator_set_id?: string;
+      strategy_id?: string;
+      date_from: Date;
+      date_to: Date;
+    }
+  ): Promise<any[]> {
+    return this.execute(async () => {
+      const where: any = {
+        operator_id: operatorId,
+        snapshot_date: {
+          gte: filters.date_from,
+          lte: filters.date_to,
+        },
+      };
+
+      if (filters.operator_set_id) {
+        where.operator_set_id = filters.operator_set_id;
+      }
+
+      if (filters.strategy_id) {
+        where.strategy_id = filters.strategy_id;
+      }
+
+      return this.prisma.operator_allocation_snapshots.findMany({
+        where,
+        include: {
+          operator_sets: {
+            include: { avs: true },
+          },
+          strategies: true,
+        },
+        orderBy: { snapshot_date: "asc" },
+      });
+    });
+  }
+
+  async findSlashingIncidents(operatorId: string): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operator_slashing_incidents.findMany({
+        where: { operator_id: operatorId },
+        include: {
+          operator_slashing_amounts: {
+            include: {
+              strategies: true,
+            },
+          },
+          operator_sets: {
+            include: { avs: true },
+          },
+        },
+        orderBy: { slashed_at: "desc" },
+      });
+    });
+  }
+
+  // ============================================================================
+  // COMPARISON QUERIES (Endpoints 26-28)
+  // ============================================================================
+
+  async findOperatorsForComparison(operatorIds: string[]): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operators.findMany({
+        where: { id: { in: operatorIds } },
+        include: {
+          operator_state: true,
+          operator_metadata: true,
+          operator_analytics: {
+            orderBy: { date: "desc" },
+            take: 1,
+          },
+          operator_strategy_state: true,
+        },
+      });
+    });
+  }
+
+  async calculateOperatorPercentiles(
+    operatorId: string,
+    date?: Date
+  ): Promise<any> {
+    return this.execute(async () => {
+      // Get operator's values
+      const operator = await this.prisma.operators.findUnique({
+        where: { id: operatorId },
+        include: {
+          operator_state: true,
+          operator_analytics: date
+            ? { where: { date }, take: 1 }
+            : { orderBy: { date: "desc" }, take: 1 },
+          operator_strategy_state: true,
+        },
+      });
+
+      if (!operator) return null;
+
+      // Get network-wide data for comparison
+      const dateFilter = date || operator.operator_analytics[0]?.date;
+      const allOperators = await this.prisma.operators.findMany({
+        where: { operator_state: { is_active: true } },
+        include: {
+          operator_state: true,
+          operator_analytics: dateFilter
+            ? { where: { date: dateFilter }, take: 1 }
+            : { orderBy: { date: "desc" }, take: 1 },
+          operator_strategy_state: true,
+        },
+      });
+
+      return { operator, allOperators };
+    });
+  }
+
+  async getNetworkAverages(date?: Date): Promise<any> {
+    return this.execute(async () => {
+      // const where: any = date ? { snapshot_date: date } : {};
+
+      // Get latest snapshot if no date specified
+      let targetDate = date;
+      if (!targetDate) {
+        const latest = await this.prisma.network_daily_aggregates.findFirst({
+          orderBy: { snapshot_date: "desc" },
+        });
+        targetDate = latest?.snapshot_date;
+      }
+
+      if (!targetDate) return null;
+
+      return this.prisma.network_daily_aggregates.findUnique({
+        where: { snapshot_date: targetDate },
+      });
+    });
+  }
 }
