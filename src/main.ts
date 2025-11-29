@@ -68,11 +68,11 @@ async function bootstrap() {
       "jwt"
     )
     .addTag("Operators", "Operator discovery and analytics")
-    .addTag("Strategies", "Strategy-specific analytics")
-    .addTag("AVS", "AVS details and relationships")
+    // .addTag("Strategies", "Strategy-specific analytics")
+    // .addTag("AVS", "AVS details and relationships")
     .addTag("Network", "Network-wide statistics")
-    .addTag("Analytics", "Advanced analytics and comparisons")
-    .addTag("Auth", "Authentication and authorization")
+    // .addTag("Analytics", "Advanced analytics and comparisons")
+    // .addTag("Auth", "Authentication and authorization")
     .addTag("Health", "System health checks")
     .build();
 

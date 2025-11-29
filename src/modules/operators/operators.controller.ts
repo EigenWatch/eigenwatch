@@ -1023,7 +1023,7 @@ export class OperatorsController extends BaseController<any> {
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: "Operator not found",
-  })
+  }) // REQUIRED because NetworkRepository extends BaseRepository
   async compareOperatorToNetwork(
     @Param("id") id: string,
     @Query() query: CompareToNetworkDto
