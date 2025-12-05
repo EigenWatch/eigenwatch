@@ -7,10 +7,10 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 import { AppConfigService } from "../config/config.service";
-import { Prisma, PrismaClient } from "generated/prisma/client";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 @Injectable()
 export class PrismaService

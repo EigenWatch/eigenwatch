@@ -5,8 +5,8 @@ import {
   HttpStatus,
   Logger,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { Response } from "express";
-import { Prisma } from "generated/prisma/client";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { ApiResponse } from "src/shared/types/api-response.types";
 
