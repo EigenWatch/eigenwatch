@@ -80,6 +80,38 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
 
       if (filteredIds.length === 0) return [];
 
+      // Risk score filtering
+      if (filters.exclude_zero_risk) {
+        const maxDates = await this.prisma.operator_analytics.groupBy({
+          by: ["operator_id"],
+          _max: { date: true },
+          where: { operator_id: { in: filteredIds } },
+        });
+
+        const conditions = maxDates
+          .filter((md) => md._max.date !== null)
+          .map((md) => ({
+            operator_id: md.operator_id,
+            date: md._max.date!,
+          }));
+
+        let validRiskIds = new Set<string>();
+        if (conditions.length > 0) {
+          const analytics = await this.prisma.operator_analytics.findMany({
+            where: { OR: conditions },
+            select: { operator_id: true, risk_score: true },
+          });
+          analytics.forEach((a) => {
+            if (a.risk_score && Number(a.risk_score) > 0) {
+              validRiskIds.add(a.operator_id);
+            }
+          });
+        }
+        filteredIds = filteredIds.filter((id) => validRiskIds.has(id));
+      }
+
+      if (filteredIds.length === 0) return [];
+
       const orderBy =
         sortBy === OperatorSortField.TVS ||
         sortBy === OperatorSortField.RISK_SCORE
@@ -223,7 +255,39 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
             ok = ok && Number(total) <= filters.max_tvs;
           return ok;
         });
-        return filtered.length;
+        
+        // Apply risk score filtering if needed
+        let finalFiltered = filtered;
+        if (filters.exclude_zero_risk) {
+          const maxDates = await this.prisma.operator_analytics.groupBy({
+            by: ["operator_id"],
+            _max: { date: true },
+            where: { operator_id: { in: filtered } },
+          });
+
+          const conditions = maxDates
+            .filter((md) => md._max.date !== null)
+            .map((md) => ({
+              operator_id: md.operator_id,
+              date: md._max.date!,
+            }));
+
+          let validRiskIds = new Set<string>();
+          if (conditions.length > 0) {
+            const analytics = await this.prisma.operator_analytics.findMany({
+              where: { OR: conditions },
+              select: { operator_id: true, risk_score: true },
+            });
+            analytics.forEach((a) => {
+              if (a.risk_score && Number(a.risk_score) > 0) {
+                validRiskIds.add(a.operator_id);
+              }
+            });
+          }
+          finalFiltered = filtered.filter((id) => validRiskIds.has(id));
+        }
+
+        return finalFiltered.length;
       }
     });
   }

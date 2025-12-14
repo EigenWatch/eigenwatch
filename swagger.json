@@ -143,6 +143,16 @@
             }
           },
           {
+            "name": "exclude_zero_risk",
+            "required": false,
+            "in": "query",
+            "description": "Exclude operators with zero or no risk score",
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
             "name": "sort_order",
             "required": false,
             "in": "query",
