@@ -20,8 +20,11 @@ import {
   AVSRegistrationHistoryItem,
 } from "../entities/avs.entities";
 
+import { CacheService } from "@/core/cache/cache.service";
+
 @Injectable()
 export class OperatorMapper {
+  constructor(private cacheService: CacheService) {}
   async mapToListItem(data: any): Promise<OperatorListItem> {
     const state = data.operator_state;
     const analytics = data.operator_analytics?.[0];
@@ -258,6 +261,13 @@ export class OperatorMapper {
       // Only fetch if it's a fully qualified HTTP(S) URL
       if (!uri.startsWith("http")) return null;
 
+      const cacheKey = `metadata:${uri}`;
+      const cached = await this.cacheService.get<OperatorMetadata>(cacheKey);
+
+      if (cached) {
+        return cached;
+      }
+
       const { data } = await axios.get(uri);
 
       // Validate and normalize the returned metadata structure
@@ -268,6 +278,8 @@ export class OperatorMapper {
         logo: data.logo ?? "",
         twitter: data.twitter ?? "",
       };
+
+      await this.cacheService.set(cacheKey, metadata, 432000); // 5 days TTL
 
       return metadata;
     } catch (error) {

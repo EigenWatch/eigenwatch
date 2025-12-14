@@ -23,12 +23,15 @@ import {
   AVSRegistrationHistoryItem,
 } from "./entities/avs.entities";
 
+import { CacheService } from "@/core/cache/cache.service";
+
 @Injectable()
 export class OperatorService extends BaseService<any> {
   constructor(
     @Inject("OperatorRepository")
     private operatorRepository: PrismaOperatorRepository,
-    private operatorMapper: OperatorMapper
+    private operatorMapper: OperatorMapper,
+    private cacheService: CacheService
   ) {
     super(operatorRepository);
   }
@@ -37,6 +40,16 @@ export class OperatorService extends BaseService<any> {
     filters: ListOperatorsDto,
     pagination: PaginationParams
   ): Promise<{ operators: OperatorListItem[]; total: number }> {
+    const cacheKey = `operators:list:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}`;
+    const cached = await this.cacheService.get<{
+      operators: OperatorListItem[];
+      total: number;
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     const [operators, total] = await Promise.all([
       this.operatorRepository.findMany(filters, pagination),
       this.operatorRepository.count(filters),
@@ -46,7 +59,10 @@ export class OperatorService extends BaseService<any> {
       operators.map((op) => this.operatorMapper.mapToListItem(op))
     );
 
-    return { operators: mapped, total };
+    const result = { operators: mapped, total };
+    await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+
+    return result;
   }
 
   async findOperatorById(id: string): Promise<OperatorOverview> {
@@ -73,6 +89,15 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     filters: ListOperatorStrategiesDto
   ): Promise<OperatorStrategyListItem[]> {
+    const cacheKey = `operators:strategies:${operatorId}:${JSON.stringify(filters)}`;
+    const cached = await this.cacheService.get<OperatorStrategyListItem[]>(
+      cacheKey
+    );
+
+    if (cached) {
+      return cached;
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -141,6 +166,8 @@ export class OperatorService extends BaseService<any> {
           (a, b) => parseFloat(b.max_magnitude) - parseFloat(a.max_magnitude)
         );
     }
+
+    await this.cacheService.set(cacheKey, filtered, 300); // 5 minutes TTL
 
     return filtered;
   }
@@ -385,6 +412,16 @@ export class OperatorService extends BaseService<any> {
     sortBy: string = "shares",
     sortOrder: "asc" | "desc" = "desc"
   ): Promise<{ delegators: any[]; summary: any }> {
+    const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
+    const cached = await this.cacheService.get<{
+      delegators: any[];
+      summary: any;
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -414,10 +451,14 @@ export class OperatorService extends BaseService<any> {
       return this.operatorMapper.mapToDelegatorListItem(d, totalShares);
     });
 
-    return {
+    const result = {
       delegators: mapped,
       summary,
     };
+
+    await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+
+    return result;
   }
 
   async getDelegatorDetail(operatorId: string, stakerId: string): Promise<any> {
@@ -617,6 +658,13 @@ export class OperatorService extends BaseService<any> {
     dateFrom: string,
     dateTo: string
   ): Promise<any> {
+    const cacheKey = `operators:snapshots:${operatorId}:${dateFrom}:${dateTo}`;
+    const cached = await this.cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
@@ -633,7 +681,10 @@ export class OperatorService extends BaseService<any> {
       parsedDateTo
     );
 
-    return this.operatorMapper.mapToDailySnapshots(snapshots);
+    const result = this.operatorMapper.mapToDailySnapshots(snapshots);
+    await this.cacheService.set(cacheKey, result, 3600); // 1 hour TTL
+
+    return result;
   }
 
   async getStrategyTVSHistory(
