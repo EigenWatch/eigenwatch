@@ -804,10 +804,12 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
       }
 
       // Apply pagination
-      return filtered.slice(
-        pagination.offset,
-        pagination.offset + pagination.limit
-      );
+      const offset = Number(pagination.offset);
+      const limit = Number(pagination.limit);
+      
+      if (!Array.isArray(filtered)) return [];
+      
+      return filtered.slice(offset, offset + limit);
     });
   }
 

@@ -9,8 +9,8 @@ export abstract class BaseController<T> {
 
   protected handlePagination(query: PaginationDto) {
     return {
-      limit: query.limit,
-      offset: query.offset,
+      limit: Number(query.limit),
+      offset: Number(query.offset),
     };
   }
 
