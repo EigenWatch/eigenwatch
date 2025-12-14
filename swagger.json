@@ -734,7 +734,6 @@
             "in": "query",
             "description": "Filter by delegator status",
             "schema": {
-              "default": "all",
               "type": "string",
               "enum": [
                 "active",
@@ -769,7 +768,6 @@
             "in": "query",
             "description": "Sort by field",
             "schema": {
-              "default": "shares",
               "type": "string",
               "enum": [
                 "shares",
@@ -783,7 +781,6 @@
             "in": "query",
             "description": "Sort order",
             "schema": {
-              "default": "desc",
               "type": "string",
               "enum": [
                 "asc",

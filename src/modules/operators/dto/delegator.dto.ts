@@ -21,11 +21,10 @@ export class ListDelegatorsDto extends PaginationDto {
   @ApiPropertyOptional({
     description: "Filter by delegator status",
     enum: DelegatorStatus,
-    default: DelegatorStatus.ALL,
   })
   @IsOptional()
   @IsEnum(DelegatorStatus)
-  status?: DelegatorStatus = DelegatorStatus.ALL;
+  status?: DelegatorStatus;
 
   @ApiPropertyOptional({
     description: "Minimum shares",
@@ -50,20 +49,18 @@ export class ListDelegatorsDto extends PaginationDto {
   @ApiPropertyOptional({
     description: "Sort by field",
     enum: DelegatorSortField,
-    default: DelegatorSortField.SHARES,
   })
   @IsOptional()
   @IsEnum(DelegatorSortField)
-  sort_by?: DelegatorSortField = DelegatorSortField.SHARES;
+  sort_by?: DelegatorSortField;
 
   @ApiPropertyOptional({
     description: "Sort order",
     enum: ["asc", "desc"],
-    default: "desc",
   })
   @IsOptional()
   @IsEnum(["asc", "desc"])
-  sort_order?: "asc" | "desc" = "desc";
+  sort_order?: "asc" | "desc";
 }
 
 export enum DelegationEventType {
