@@ -736,7 +736,7 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
     return this.execute(async () => {
       const where: any = { operator_id: operatorId };
 
-      if (filters.status !== "all") {
+      if (filters.status && filters.status !== "all") {
         where.is_delegated = filters.status === "active";
       }
 
