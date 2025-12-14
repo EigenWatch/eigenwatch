@@ -145,7 +145,7 @@ export class OperatorMapper {
     const names: Record<string, string> = {
       // Add known strategy addresses and names
     };
-    return names[address?.toLowerCase()] || FormatUtils.formatAddress(address);
+    return names[address?.toLowerCase()] || FormatUtils.formatAddress(address || "");
   }
 
   mapToStrategyListItem(

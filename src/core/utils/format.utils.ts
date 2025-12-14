@@ -17,6 +17,7 @@ export class FormatUtils {
     prefixLen: number = 6,
     suffixLen: number = 4
   ): string {
+    if (!address) return "";
     if (address.length <= prefixLen + suffixLen) {
       return address;
     }
