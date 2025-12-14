@@ -541,10 +541,15 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const overview =
-      await this.operatorAllocationRepository.findAllocationsOverview(operatorId);
+    const [allocations, strategyStates] = await Promise.all([
+      this.operatorAllocationRepository.findAllocationsOverview(operatorId),
+      this.operatorStrategyRepository.findStrategiesByOperator(operatorId),
+    ]);
 
-    return this.operatorMapper.mapToAllocationsOverview(overview);
+    return this.operatorMapper.mapToAllocationsOverview({
+      allocations,
+      strategyStates,
+    });
   }
 
   async listDetailedAllocations(

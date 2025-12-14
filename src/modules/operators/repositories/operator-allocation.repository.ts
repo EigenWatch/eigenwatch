@@ -30,9 +30,9 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
     });
   }
 
-  async findAllocationsOverview(operatorId: string): Promise<any> {
+  async findAllocationsOverview(operatorId: string): Promise<any[]> {
     return this.execute(async () => {
-      const allocations = await this.prisma.operator_allocations.findMany({
+      return this.prisma.operator_allocations.findMany({
         where: { operator_id: operatorId },
         include: {
           strategies: true,
@@ -43,27 +43,6 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
           },
         },
       });
-
-      // Group by AVS
-      const avsMap = new Map<string, any>();
-      allocations.forEach((alloc) => {
-        const avsId = alloc.operator_sets.avs_id;
-        if (!avsMap.has(avsId)) {
-          avsMap.set(avsId, {
-            avs: alloc.operator_sets.avs,
-            total_magnitude: 0,
-            strategies: [],
-          });
-        }
-        const entry = avsMap.get(avsId);
-        entry.total_magnitude += Number(alloc.magnitude);
-        entry.strategies.push({
-          strategy: alloc.strategies,
-          magnitude: alloc.magnitude,
-        });
-      });
-
-      return Array.from(avsMap.values());
     });
   }
 
