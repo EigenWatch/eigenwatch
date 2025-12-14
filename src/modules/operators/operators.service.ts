@@ -659,6 +659,22 @@ export class OperatorService extends BaseService<any> {
     return this.operatorMapper.mapToVolatilityMetrics(metrics);
   }
 
+  async getOperatorRiskProfile(operatorId: string, date?: string): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+    const profile = await this.operatorAnalyticsRepository.findFullRiskProfile(
+      operatorId,
+      parsedDate
+    );
+
+    return this.operatorMapper.mapToRiskProfile(profile);
+  }
+
   // ============================================================================
   // TIME SERIES METHODS (Endpoints 20-25)
   // ============================================================================

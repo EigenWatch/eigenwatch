@@ -2,7 +2,7 @@
 // SRC/MODULES/OPERATORS/ENTITIES/RISK.ENTITIES.TS
 // ============================================================================
 
-export type RiskLevel = "low" | "medium" | "high";
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export interface RiskAssessment {
   assessment_date: string;
@@ -60,4 +60,47 @@ export interface VolatilityMetric {
 
 export interface VolatilityMetrics {
   metrics: VolatilityMetric[];
+}
+
+export interface OperatorRiskProfile {
+  operator_id: string;
+  assessment_date: string;
+  scores: {
+    risk: number;
+    confidence: number;
+    performance: number;
+    economic: number;
+    network_position: number;
+  };
+  risk_level: string;
+  flags: {
+    is_active: boolean;
+    has_been_slashed: boolean;
+    has_sufficient_data: boolean;
+  };
+  metrics: {
+    delegation: {
+      hhi: number;
+      volatility_30d: number;
+      growth_rate_30d: number;
+      distribution_cv: number;
+      size_percentile: number;
+    };
+    slashing: {
+      count: number;
+      lifetime_amount: string;
+    };
+    activity: {
+      operational_days: number;
+    };
+  };
+  concentration: {
+    delegation: ConcentrationMetric | null;
+    allocation_by_avs: ConcentrationMetric | null;
+    allocation_by_strategy: ConcentrationMetric | null;
+  };
+  volatility: {
+    tvs: VolatilityMetric | null;
+    delegators: VolatilityMetric | null;
+  };
 }

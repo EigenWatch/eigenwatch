@@ -19,6 +19,7 @@ import {
   AVSRelationshipDetail,
   AVSRegistrationHistoryItem,
 } from "../entities/avs.entities";
+import { OperatorRiskProfile } from "../entities/risk.entities";
 
 import { CacheService } from "@/core/cache/cache.service";
 
@@ -819,19 +820,111 @@ export class OperatorMapper {
 
   mapToVolatilityMetrics(metrics: any[]): any {
     return {
-      metrics: metrics.map((m) => ({
-        metric_type: m.metric_type,
-        date: m.date.toISOString().split("T")[0],
-        volatility_7d: m.volatility_7d?.toString() || null,
-        volatility_30d: m.volatility_30d?.toString() || null,
-        volatility_90d: m.volatility_90d?.toString() || null,
-        mean_value: m.mean_value?.toString() || null,
-        coefficient_of_variation:
-          m.coefficient_of_variation?.toString() || null,
-        trend_direction: m.trend_direction?.toString() || null,
-        trend_strength: m.trend_strength?.toString() || null,
-        confidence_score: m.confidence_score?.toString() || null,
-      })),
+      metrics: metrics.map((m) => this.mapToVolatilityMetric(m)),
+    };
+  }
+
+  mapToRiskProfile(profile: any): OperatorRiskProfile {
+    const { analytics, concentration, volatility } = profile;
+
+    if (!analytics) {
+      return null;
+    }
+
+    return {
+      operator_id: analytics.operator_id,
+      assessment_date: analytics.date.toISOString().split("T")[0],
+      scores: {
+        risk: parseFloat(analytics.risk_score.toString()),
+        confidence: parseFloat(analytics.confidence_score.toString()),
+        performance: analytics.performance_score
+          ? parseFloat(analytics.performance_score.toString())
+          : 0,
+        economic: analytics.economic_score
+          ? parseFloat(analytics.economic_score.toString())
+          : 0,
+        network_position: analytics.network_position_score
+          ? parseFloat(analytics.network_position_score.toString())
+          : 0,
+      },
+      risk_level: analytics.risk_level,
+      flags: {
+        is_active: analytics.is_active || false,
+        has_been_slashed: (analytics.slashing_event_count || 0) > 0,
+        has_sufficient_data: analytics.has_sufficient_data || false,
+      },
+      metrics: {
+        delegation: {
+          hhi: analytics.delegation_hhi
+            ? parseFloat(analytics.delegation_hhi.toString())
+            : 0,
+          volatility_30d: analytics.delegation_volatility_30d
+            ? parseFloat(analytics.delegation_volatility_30d.toString())
+            : 0,
+          growth_rate_30d: analytics.growth_rate_30d
+            ? parseFloat(analytics.growth_rate_30d.toString())
+            : 0,
+          distribution_cv: analytics.delegator_distribution_cv
+            ? parseFloat(analytics.delegator_distribution_cv.toString())
+            : 0,
+          size_percentile: analytics.size_percentile
+            ? parseFloat(analytics.size_percentile.toString())
+            : 0,
+        },
+        slashing: {
+          count: analytics.slashing_event_count || 0,
+          lifetime_amount: analytics.lifetime_slashing_amount?.toString() || "0",
+        },
+        activity: {
+          operational_days: analytics.operational_days || 0,
+        },
+      },
+      concentration: {
+        delegation: concentration.delegation
+          ? this.mapToConcentrationMetric(concentration.delegation)
+          : null,
+        allocation_by_avs: concentration.allocation_by_avs
+          ? this.mapToConcentrationMetric(concentration.allocation_by_avs)
+          : null,
+        allocation_by_strategy: concentration.allocation_by_strategy
+          ? this.mapToConcentrationMetric(concentration.allocation_by_strategy)
+          : null,
+      },
+      volatility: {
+        tvs: volatility.tvs ? this.mapToVolatilityMetric(volatility.tvs) : null,
+        delegators: volatility.delegators
+          ? this.mapToVolatilityMetric(volatility.delegators)
+          : null,
+      },
+    };
+  }
+
+  private mapToConcentrationMetric(m: any): any {
+    return {
+      concentration_type: m.concentration_type,
+      date: m.date.toISOString().split("T")[0],
+      hhi_value: m.hhi_value?.toString() || "0",
+      gini_coefficient: m.gini_coefficient?.toString() || null,
+      top_1_percentage: m.top_1_percentage?.toString() || null,
+      top_5_percentage: m.top_5_percentage?.toString() || null,
+      top_10_percentage: m.top_10_percentage?.toString() || null,
+      total_entities: m.total_entities || 0,
+      effective_entities: m.effective_entities?.toString() || null,
+    };
+  }
+
+  private mapToVolatilityMetric(m: any): any {
+    return {
+      metric_type: m.metric_type,
+      date: m.date.toISOString().split("T")[0],
+      volatility_7d: m.volatility_7d?.toString() || null,
+      volatility_30d: m.volatility_30d?.toString() || null,
+      volatility_90d: m.volatility_90d?.toString() || null,
+      mean_value: m.mean_value?.toString() || null,
+      coefficient_of_variation: m.coefficient_of_variation?.toString() || null,
+      trend_direction: m.trend_direction?.toString() || null,
+      trend_strength: m.trend_strength?.toString() || null,
+      confidence_score: m.confidence_score?.toString() || null,
     };
   }
 

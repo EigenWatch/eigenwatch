@@ -261,4 +261,68 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
       return aggregate || {};
     });
   }
+
+  async findFullRiskProfile(operatorId: string, date?: Date): Promise<any> {
+    return this.execute(async () => {
+      const whereAnalytics: any = { operator_id: operatorId };
+      const whereConcentration: any = { operator_id: operatorId };
+      const whereVolatility: any = { operator_id: operatorId };
+
+      if (date) {
+        whereAnalytics.date = date;
+        whereConcentration.date = date;
+        whereVolatility.date = date;
+      }
+
+      const [
+        analytics,
+        delegationConc,
+        avsConc,
+        strategyConc,
+        tvsVol,
+        delegatorVol,
+      ] = await Promise.all([
+        this.prisma.operator_analytics.findFirst({
+          where: whereAnalytics,
+          orderBy: { date: "desc" },
+        }),
+        this.prisma.concentration_metrics.findFirst({
+          where: { ...whereConcentration, concentration_type: "delegation" },
+          orderBy: { date: "desc" },
+        }),
+        this.prisma.concentration_metrics.findFirst({
+          where: { ...whereConcentration, concentration_type: "allocation_by_avs" },
+          orderBy: { date: "desc" },
+        }),
+        this.prisma.concentration_metrics.findFirst({
+          where: {
+            ...whereConcentration,
+            concentration_type: "allocation_by_strategy",
+          },
+          orderBy: { date: "desc" },
+        }),
+        this.prisma.volatility_metrics.findFirst({
+          where: { ...whereVolatility, metric_type: "tvs" },
+          orderBy: { date: "desc" },
+        }),
+        this.prisma.volatility_metrics.findFirst({
+          where: { ...whereVolatility, metric_type: "delegators" },
+          orderBy: { date: "desc" },
+        }),
+      ]);
+
+      return {
+        analytics,
+        concentration: {
+          delegation: delegationConc,
+          allocation_by_avs: avsConc,
+          allocation_by_strategy: strategyConc,
+        },
+        volatility: {
+          tvs: tvsVol,
+          delegators: delegatorVol,
+        },
+      };
+    });
+  }
 }

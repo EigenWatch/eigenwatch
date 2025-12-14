@@ -655,7 +655,7 @@ export class OperatorsController extends BaseController<any> {
     @Param("id") id: string,
     @Query() query: GetRiskAssessmentDto
   ) {
-    const assessment = await this.operatorService.getRiskAssessment(
+    const assessment = await this.operatorService.getOperatorRiskProfile(
       id,
       query.date
     );
