@@ -748,7 +748,6 @@
             "in": "query",
             "description": "Minimum shares",
             "schema": {
-              "example": 1000,
               "type": "number"
             }
           },
@@ -758,7 +757,6 @@
             "in": "query",
             "description": "Maximum shares",
             "schema": {
-              "example": 100000,
               "type": "number"
             }
           },

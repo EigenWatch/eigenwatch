@@ -28,7 +28,6 @@ export class ListDelegatorsDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: "Minimum shares",
-    example: 1000,
   })
   @IsOptional()
   @Type(() => Number)
@@ -38,7 +37,6 @@ export class ListDelegatorsDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: "Maximum shares",
-    example: 100000,
   })
   @IsOptional()
   @Type(() => Number)
