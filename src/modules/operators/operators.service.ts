@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseService } from "@/core/common/base.service";
 import { OperatorNotFoundException } from "@/shared/errors/app.exceptions";
 import { PaginationParams } from "@/shared/types/query.types";
@@ -17,6 +16,11 @@ import {
 } from "./entities/strategy.entities";
 import { OperatorMapper } from "./mappers/operator.mapper";
 import { PrismaOperatorRepository } from "./repositories/operators.repository";
+import { OperatorStrategyRepository } from "./repositories/operator-strategy.repository";
+import { OperatorDelegatorRepository } from "./repositories/operator-delegator.repository";
+import { OperatorAVSRepository } from "./repositories/operator-avs.repository";
+import { OperatorAllocationRepository } from "./repositories/operator-allocation.repository";
+import { OperatorAnalyticsRepository } from "./repositories/operator-analytics.repository";
 import {
   AVSRelationshipListItem,
   AVSRelationshipDetail,
@@ -28,10 +32,14 @@ import { CacheService } from "@/core/cache/cache.service";
 @Injectable()
 export class OperatorService extends BaseService<any> {
   constructor(
-    @Inject("OperatorRepository")
-    private operatorRepository: PrismaOperatorRepository,
-    private operatorMapper: OperatorMapper,
-    private cacheService: CacheService
+    private readonly operatorRepository: PrismaOperatorRepository,
+    private readonly operatorStrategyRepository: OperatorStrategyRepository,
+    private readonly operatorDelegatorRepository: OperatorDelegatorRepository,
+    private readonly operatorAVSRepository: OperatorAVSRepository,
+    private readonly operatorAllocationRepository: OperatorAllocationRepository,
+    private readonly operatorAnalyticsRepository: OperatorAnalyticsRepository,
+    private readonly operatorMapper: OperatorMapper,
+    private readonly cacheService: CacheService
   ) {
     super(operatorRepository);
   }
@@ -105,16 +113,16 @@ export class OperatorService extends BaseService<any> {
     }
 
     const strategies =
-      await this.operatorRepository.findStrategiesByOperator(operatorId);
+      await this.operatorStrategyRepository.findStrategiesByOperator(operatorId);
 
     // Get delegator counts for each strategy
     const strategiesWithCounts = await Promise.all(
       strategies.map(async (strategy) => {
-        const count = await this.operatorRepository.countDelegatorsByStrategy(
+        const delegatorCount = await this.operatorStrategyRepository.countDelegatorsByStrategy(
           operatorId,
           strategy.strategy_id
         );
-        return this.operatorMapper.mapToStrategyListItem(strategy, count);
+        return this.operatorMapper.mapToStrategyListItem(strategy, delegatorCount);
       })
     );
 
@@ -183,27 +191,25 @@ export class OperatorService extends BaseService<any> {
     }
 
     // Get strategy state
-    const strategyState = await this.operatorRepository.findStrategyByOperator(
+    const strategy = await this.operatorStrategyRepository.findStrategyByOperator(
       operatorId,
       strategyId
     );
 
-    if (!strategyState) {
+    if (!strategy) {
       throw new Error(
         `Strategy ${strategyId} not found for operator ${operatorId}`
       );
     }
 
     // Get allocations
-    const allocations =
-      await this.operatorRepository.findAllocationsByOperatorStrategy(
+    const allocations = await this.operatorAllocationRepository.findAllocationsByOperatorStrategy(
         operatorId,
         strategyId
       );
 
     // Get delegators
-    const delegators =
-      await this.operatorRepository.findDelegatorsByOperatorStrategy(
+    const delegators = await this.operatorDelegatorRepository.findDelegatorsByOperatorStrategy(
         operatorId,
         strategyId
       );
@@ -214,7 +220,7 @@ export class OperatorService extends BaseService<any> {
       .toString();
 
     return this.operatorMapper.mapToStrategyDetail(
-      strategyState,
+      strategy,
       allocations,
       delegators,
       totalShares
@@ -233,7 +239,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const activities = await this.operatorRepository.findOperatorActivities(
+    const activities = await this.operatorAnalyticsRepository.findOperatorActivities(
       operatorId,
       activityTypes,
       limit,
@@ -261,8 +267,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const relationships =
-      await this.operatorRepository.findOperatorAVSRelationships(
+    const relationships = await this.operatorAVSRepository.findOperatorAVSRelationships(
         operatorId,
         status
       );
@@ -303,8 +308,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const relationship =
-      await this.operatorRepository.findOperatorAVSRelationship(
+    const relationship = await this.operatorAVSRepository.findOperatorAVSRelationship(
         operatorId,
         avsId
       );
@@ -316,8 +320,8 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [operatorSets, commissions] = await Promise.all([
-      this.operatorRepository.findOperatorSetsForAVS(operatorId, avsId),
-      this.operatorRepository.findCommissionsForAVS(operatorId, avsId),
+      this.operatorAVSRepository.findOperatorSetsForAVS(operatorId, avsId),
+      this.operatorAVSRepository.findCommissionsForAVS(operatorId, avsId),
     ]);
 
     return this.operatorMapper.mapToAVSRelationshipDetail(
@@ -337,7 +341,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const history = await this.operatorRepository.findAVSRegistrationHistory(
+    const history = await this.operatorAVSRepository.findAVSRegistrationHistory(
       operatorId,
       avsId
     );
@@ -356,8 +360,9 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const commissions =
-      await this.operatorRepository.findCommissionOverview(operatorId);
+    const commissions = await this.operatorAVSRepository.findCommissionOverview(
+      operatorId
+    );
 
     return this.operatorMapper.mapToCommissionOverview(commissions);
   }
@@ -389,7 +394,7 @@ export class OperatorService extends BaseService<any> {
       this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
     }
 
-    const history = await this.operatorRepository.findCommissionHistory(
+    const history = await this.operatorAVSRepository.findCommissionHistory(
       operatorId,
       parsedFilters
     );
@@ -429,14 +434,14 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [delegators, summary] = await Promise.all([
-      this.operatorRepository.findDelegators(
+      this.operatorDelegatorRepository.findDelegators(
         operatorId,
         filters,
         pagination,
         sortBy,
         sortOrder
       ),
-      this.operatorRepository.getDelegatorsSummary(operatorId),
+      this.operatorDelegatorRepository.getDelegatorsSummary(operatorId),
     ]);
 
     // Map delegators with calculated total shares
@@ -468,7 +473,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const delegator = await this.operatorRepository.findDelegatorDetail(
+    const delegator = await this.operatorDelegatorRepository.findDelegatorDetail(
       operatorId,
       stakerId
     );
@@ -509,12 +514,12 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [events, total] = await Promise.all([
-      this.operatorRepository.findDelegationHistory(
+      this.operatorDelegatorRepository.findDelegationHistory(
         operatorId,
         parsedFilters,
         pagination
       ),
-      this.operatorRepository.countDelegationHistory(operatorId, parsedFilters),
+      this.operatorDelegatorRepository.countDelegationHistory(operatorId, parsedFilters),
     ]);
 
     const mapped = this.operatorMapper.mapToDelegationHistory(events);
@@ -536,10 +541,10 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const data =
-      await this.operatorRepository.findAllocationsOverview(operatorId);
+    const overview =
+      await this.operatorAllocationRepository.findAllocationsOverview(operatorId);
 
-    return this.operatorMapper.mapToAllocationsOverview(data);
+    return this.operatorMapper.mapToAllocationsOverview(overview);
   }
 
   async listDetailedAllocations(
@@ -561,14 +566,14 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [allocations, total] = await Promise.all([
-      this.operatorRepository.findDetailedAllocations(
+      this.operatorAllocationRepository.findDetailedAllocations(
         operatorId,
         filters,
         pagination,
         sortBy,
         sortOrder
       ),
-      this.operatorRepository.countDetailedAllocations(operatorId, filters),
+      this.operatorAllocationRepository.countDetailedAllocations(operatorId, filters),
     ]);
 
     const mapped = allocations.map((alloc) =>
@@ -593,18 +598,18 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const analytics = await this.operatorRepository.findRiskAssessment(
+    const assessment = await this.operatorAnalyticsRepository.findRiskAssessment(
       operatorId,
       parsedDate
     );
 
-    if (!analytics) {
+    if (!assessment) {
       throw new Error(
         `No risk assessment found for operator ${operatorId}${date ? ` on ${date}` : ""}`
       );
     }
 
-    return this.operatorMapper.mapToRiskAssessment(analytics);
+    return this.operatorMapper.mapToRiskAssessment(assessment);
   }
 
   async getConcentrationMetrics(
@@ -619,7 +624,7 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const metrics = await this.operatorRepository.findConcentrationMetrics(
+    const metrics = await this.operatorAnalyticsRepository.findConcentrationMetrics(
       operatorId,
       concentrationType,
       parsedDate
@@ -640,7 +645,7 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const metrics = await this.operatorRepository.findVolatilityMetrics(
+    const metrics = await this.operatorAnalyticsRepository.findVolatilityMetrics(
       operatorId,
       metricType,
       parsedDate
@@ -675,7 +680,7 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findDailySnapshots(
+    const snapshots = await this.operatorAnalyticsRepository.findDailySnapshots(
       operatorId,
       parsedDateFrom,
       parsedDateTo
@@ -703,20 +708,20 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findStrategyTVSHistory(
+    const history = await this.operatorStrategyRepository.findStrategyTVSHistory(
       operatorId,
       strategyId,
       parsedDateFrom,
       parsedDateTo
     );
 
-    if (snapshots.length === 0) {
+    if (history.length === 0) {
       throw new Error(
         `No history found for strategy ${strategyId} of operator ${operatorId}`
       );
     }
 
-    return this.operatorMapper.mapToStrategyTVSHistory(snapshots, snapshots[0]);
+    return this.operatorMapper.mapToStrategyTVSHistory(history, history[0]);
   }
 
   async getDelegatorSharesHistory(
@@ -743,13 +748,13 @@ export class OperatorService extends BaseService<any> {
       this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
     }
 
-    const snapshots = await this.operatorRepository.findDelegatorSharesHistory(
+    const history = await this.operatorDelegatorRepository.findDelegatorSharesHistory(
       operatorId,
       stakerId,
       parsedFilters
     );
 
-    return this.operatorMapper.mapToDelegatorSharesHistory(snapshots);
+    return this.operatorMapper.mapToDelegatorSharesHistory(history);
   }
 
   async getAVSRelationshipTimeline(
@@ -768,14 +773,14 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findAVSRelationshipTimeline(
+    const timeline = await this.operatorAVSRepository.findAVSRelationshipTimeline(
       operatorId,
       avsId,
       parsedDateFrom,
       parsedDateTo
     );
 
-    return this.operatorMapper.mapToAVSRelationshipTimeline(snapshots);
+    return this.operatorMapper.mapToAVSRelationshipTimeline(timeline);
   }
 
   async getAllocationHistory(
@@ -797,7 +802,7 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findAllocationHistory(
+    const history = await this.operatorAllocationRepository.findAllocationHistory(
       operatorId,
       {
         operator_set_id: filters.operator_set_id,
@@ -807,7 +812,7 @@ export class OperatorService extends BaseService<any> {
       }
     );
 
-    return this.operatorMapper.mapToAllocationHistory(snapshots);
+    return this.operatorMapper.mapToAllocationHistory(history);
   }
 
   async getSlashingIncidents(operatorId: string): Promise<any> {
@@ -817,7 +822,7 @@ export class OperatorService extends BaseService<any> {
     }
 
     const incidents =
-      await this.operatorRepository.findSlashingIncidents(operatorId);
+      await this.operatorAnalyticsRepository.findSlashingIncidents(operatorId);
 
     return this.operatorMapper.mapToSlashingIncidents(incidents);
   }
@@ -841,7 +846,7 @@ export class OperatorService extends BaseService<any> {
       throw new Error("Duplicate operator IDs are not allowed");
     }
 
-    const operators = await this.operatorRepository.findOperatorsForComparison(
+    const operators = await this.operatorAnalyticsRepository.findOperatorsForComparison(
       dto.operator_ids
     );
 
@@ -865,7 +870,7 @@ export class OperatorService extends BaseService<any> {
 
     const parsedDate = date ? new Date(date) : undefined;
 
-    const data = await this.operatorRepository.calculateOperatorPercentiles(
+    const data = await this.operatorAnalyticsRepository.calculateOperatorPercentiles(
       operatorId,
       parsedDate
     );
@@ -890,7 +895,7 @@ export class OperatorService extends BaseService<any> {
 
     const [operatorData, networkAvg] = await Promise.all([
       this.operatorRepository.findById(operatorId),
-      this.operatorRepository.getNetworkAverages(parsedDate),
+      this.operatorAnalyticsRepository.getNetworkAverages(parsedDate),
     ]);
 
     if (!networkAvg) {
