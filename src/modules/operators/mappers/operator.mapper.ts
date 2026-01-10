@@ -20,6 +20,10 @@ import {
   AVSRegistrationHistoryItem,
 } from "../entities/avs.entities";
 import { OperatorRiskProfile } from "../entities/risk.entities";
+import {
+  CommissionOverviewResponseDto,
+  CommissionHistoryResponseDto,
+} from "../dto/commission-response.dto";
 
 import { CacheService } from "@/core/cache/cache.service";
 
@@ -511,15 +515,50 @@ export class OperatorMapper {
   // COMMISSION MAPPERS (Endpoints 10-11)
   // ============================================================================
 
-  mapToCommissionOverview(commissions: any[]): any {
+  mapToCommissionOverview(data: {
+    rates: any[];
+    stats: {
+      max_historical_bips: number;
+      changes_last_12m: number;
+      last_change_date: Date | null;
+    };
+  }): CommissionOverviewResponseDto {
+    const { rates, stats } = data;
+
     // Filter by commission type
-    const piCommission = commissions.find((c) => c.commission_type === "pi");
-    const avsCommissions = commissions.filter(
-      (c) => c.commission_type === "avs"
-    );
-    const operatorSetCommissions = commissions.filter(
+    const piCommission = rates.find((c) => c.commission_type === "pi");
+    const avsCommissions = rates.filter((c) => c.commission_type === "avs");
+    const operatorSetCommissions = rates.filter(
       (c) => c.commission_type === "operator_set"
     );
+
+    // Calculate days since last change
+    let daysSinceLastChange = 0;
+    if (stats.last_change_date) {
+      const diffTime = Math.abs(
+        new Date().getTime() - stats.last_change_date.getTime()
+      );
+      daysSinceLastChange = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } else {
+        // If no history, use the oldest activation date from current rates as a proxy
+        // or just return 0/null. Let's use 0 for now if no data.
+        // Better: if no history, they are likely new or very stable since registration.
+        // We could look at registration date but we don't have it here easily.
+        // Let's stick to 0 if no history found.
+        daysSinceLastChange = 0; 
+    }
+
+    // Check for pending changes
+    const isChangePending = rates.some(
+      (c) => c.upcoming_bips !== null || c.upcoming_activated_at !== null
+    );
+
+    // Calculate max historical bips (compare history max with current max)
+    const currentMaxBips = Math.max(
+      ...rates.map((c) => c.current_bips),
+      0
+    );
+    const maxHistoricalBips = Math.max(stats.max_historical_bips, currentMaxBips);
 
     return {
       pi_commission: piCommission
@@ -544,10 +583,16 @@ export class OperatorMapper {
         current_bips: c.current_bips,
         activated_at: c.current_activated_at.toISOString(),
       })),
+      behavior_profile: {
+        days_since_last_change: daysSinceLastChange,
+        changes_last_12m: stats.changes_last_12m,
+        max_historical_bips: maxHistoricalBips,
+        is_change_pending: isChangePending,
+      },
     };
   }
 
-  mapToCommissionHistory(history: any[]): any {
+  mapToCommissionHistory(history: any[]): CommissionHistoryResponseDto {
     return {
       changes: history.map((item) => ({
         commission_type: item.commission_type,

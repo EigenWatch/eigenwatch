@@ -28,6 +28,10 @@ import { ListOperatorAVSDto } from "./dto/avs.dto";
 import { ListDetailedAllocationsDto } from "./dto/allocation.dto";
 import { GetCommissionHistoryDto } from "./dto/commission.dto";
 import {
+  CommissionOverviewResponseDto,
+  CommissionHistoryResponseDto,
+} from "./dto/commission-response.dto";
+import {
   ListDelegatorsDto,
   GetDelegationHistoryDto,
 } from "./dto/delegator.dto";
@@ -355,12 +359,13 @@ export class OperatorsController extends BaseController<any> {
   @ApiOperation({
     summary: "Get operator commission overview",
     description:
-      "All commission rates for the operator including PI, AVS, and operator set commissions",
+      "All commission rates for the operator including PI, AVS, and operator set commissions, plus behavioral insights.",
   })
   @ApiParam({ name: "id", description: "Operator ID" })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Successfully retrieved commission overview",
+    type: CommissionOverviewResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -388,6 +393,7 @@ export class OperatorsController extends BaseController<any> {
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Successfully retrieved commission history",
+    type: CommissionHistoryResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

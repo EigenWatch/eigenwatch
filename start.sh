@@ -5,7 +5,7 @@ set -e
 echo "--> Generating Prisma Client..."
 npx prisma generate
 
-# Start the application on port 4000
-export PORT=4000
+# Start the application on port 5000
+export PORT=5000
 echo "--> Starting Server on port $PORT..."
 node dist/src/main

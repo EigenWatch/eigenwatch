@@ -590,7 +590,7 @@
     },
     "/api/v1/operators/{id}/commission": {
       "get": {
-        "description": "All commission rates for the operator including PI, AVS, and operator set commissions",
+        "description": "All commission rates for the operator including PI, AVS, and operator set commissions, plus behavioral insights.",
         "operationId": "OperatorsController_getCommissionOverview",
         "parameters": [
           {
@@ -605,7 +605,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Successfully retrieved commission overview"
+            "description": "Successfully retrieved commission overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionOverviewResponseDto"
+                }
+              }
+            }
           },
           "404": {
             "description": "Operator not found"
@@ -684,7 +691,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Successfully retrieved commission history"
+            "description": "Successfully retrieved commission history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionHistoryResponseDto"
+                }
+              }
+            }
           },
           "404": {
             "description": "Operator not found"
@@ -2257,6 +2271,248 @@
       }
     },
     "schemas": {
+      "PICommissionDto": {
+        "type": "object",
+        "properties": {
+          "current_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "Current commission in basis points"
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "total_changes": {
+            "type": "number",
+            "example": 5,
+            "description": "Total number of times commission has changed"
+          }
+        },
+        "required": [
+          "current_bips",
+          "activated_at",
+          "total_changes"
+        ]
+      },
+      "AVSCommissionDto": {
+        "type": "object",
+        "properties": {
+          "avs_id": {
+            "type": "string",
+            "example": "0x123..."
+          },
+          "avs_name": {
+            "type": "string",
+            "example": "EigenDA"
+          },
+          "current_bips": {
+            "type": "number",
+            "example": 500
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "upcoming_bips": {
+            "type": "number",
+            "example": 600,
+            "nullable": true
+          },
+          "upcoming_activated_at": {
+            "type": "string",
+            "example": "2024-02-01T00:00:00Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "avs_id",
+          "avs_name",
+          "current_bips",
+          "activated_at",
+          "upcoming_bips",
+          "upcoming_activated_at"
+        ]
+      },
+      "OperatorSetCommissionDto": {
+        "type": "object",
+        "properties": {
+          "operator_set_id": {
+            "type": "string",
+            "example": "0xabc..."
+          },
+          "avs_name": {
+            "type": "string",
+            "example": "EigenDA"
+          },
+          "operator_set_number": {
+            "type": "number",
+            "example": 1
+          },
+          "current_bips": {
+            "type": "number",
+            "example": 200
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          }
+        },
+        "required": [
+          "operator_set_id",
+          "avs_name",
+          "operator_set_number",
+          "current_bips",
+          "activated_at"
+        ]
+      },
+      "CommissionBehaviorProfileDto": {
+        "type": "object",
+        "properties": {
+          "days_since_last_change": {
+            "type": "number",
+            "example": 450,
+            "description": "Days since the last commission change. High = Stable."
+          },
+          "changes_last_12m": {
+            "type": "number",
+            "example": 2,
+            "description": "Number of rate changes in the last 1 year"
+          },
+          "max_historical_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "The highest commission rate ever observed for this operator"
+          },
+          "is_change_pending": {
+            "type": "boolean",
+            "example": false,
+            "description": "True if there is a pending commission change"
+          }
+        },
+        "required": [
+          "days_since_last_change",
+          "changes_last_12m",
+          "max_historical_bips",
+          "is_change_pending"
+        ]
+      },
+      "CommissionOverviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "pi_commission": {
+            "description": "Programmatic Incentive commission details",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PICommissionDto"
+              }
+            ]
+          },
+          "avs_commissions": {
+            "description": "List of AVS-specific commissions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AVSCommissionDto"
+            }
+          },
+          "operator_set_commissions": {
+            "description": "List of Operator Set commissions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorSetCommissionDto"
+            }
+          },
+          "behavior_profile": {
+            "description": "High-level insights for risk dashboards",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionBehaviorProfileDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pi_commission",
+          "avs_commissions",
+          "operator_set_commissions",
+          "behavior_profile"
+        ]
+      },
+      "CommissionHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "commission_type": {
+            "type": "string",
+            "enum": [
+              "pi",
+              "avs",
+              "operator_set"
+            ]
+          },
+          "avs_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "avs_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "operator_set_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "old_bips": {
+            "type": "number"
+          },
+          "new_bips": {
+            "type": "number"
+          },
+          "change_delta": {
+            "type": "number"
+          },
+          "changed_at": {
+            "type": "string"
+          },
+          "activated_at": {
+            "type": "string"
+          },
+          "activation_delay_seconds": {
+            "type": "number",
+            "nullable": true
+          },
+          "block_number": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "commission_type",
+          "avs_id",
+          "avs_name",
+          "operator_set_id",
+          "old_bips",
+          "new_bips",
+          "change_delta",
+          "changed_at",
+          "activated_at",
+          "activation_delay_seconds",
+          "block_number"
+        ]
+      },
+      "CommissionHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionHistoryItemDto"
+            }
+          }
+        },
+        "required": [
+          "changes"
+        ]
+      },
       "CompareOperatorsDto": {
         "type": "object",
         "properties": {

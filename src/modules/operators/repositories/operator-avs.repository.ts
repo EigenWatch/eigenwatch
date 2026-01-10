@@ -179,19 +179,62 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     });
   }
 
-  async findCommissionOverview(operatorId: string): Promise<any[]> {
+  async findCommissionOverview(operatorId: string): Promise<any> {
     return this.execute(async () => {
-      return this.prisma.operator_commission_rates.findMany({
-        where: { operator_id: operatorId },
-        include: {
-          avs: true,
-          operator_sets: {
-            include: {
-              avs: true,
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+      const [rates, historyStats, lastChange] = await Promise.all([
+        // 1. Get current rates
+        this.prisma.operator_commission_rates.findMany({
+          where: { operator_id: operatorId },
+          include: {
+            avs: true,
+            operator_sets: {
+              include: {
+                avs: true,
+              },
             },
           },
-        },
+        }),
+
+        // 2. Get aggregate stats (max bips, count last 12m)
+        this.prisma.operator_commission_history.aggregate({
+          where: {
+            operator_id: operatorId,
+          },
+          _max: {
+            new_bips: true,
+          },
+          _count: {
+            _all: true,
+          },
+        }),
+
+        // 3. Get last change date separately (aggregate doesn't support conditional count easily in one go without raw query)
+        this.prisma.operator_commission_history.findFirst({
+            where: { operator_id: operatorId },
+            orderBy: { changed_at: 'desc' },
+            select: { changed_at: true }
+        }),
+      ]);
+
+      // Get count of changes in last 12 months
+      const changesLast12m = await this.prisma.operator_commission_history.count({
+        where: {
+            operator_id: operatorId,
+            changed_at: { gte: oneYearAgo }
+        }
       });
+
+      return {
+        rates,
+        stats: {
+            max_historical_bips: historyStats._max.new_bips || 0,
+            changes_last_12m: changesLast12m,
+            last_change_date: lastChange?.changed_at || null
+        }
+      };
     });
   }
 
