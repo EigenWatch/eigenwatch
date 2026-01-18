@@ -17,14 +17,13 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
     filters: ListOperatorsDto,
     pagination: { limit: number; offset: number },
     sortBy?: OperatorSortField,
-    sortOrder: "asc" | "desc" = "desc"
+    sortOrder: "asc" | "desc" = "desc",
   ): Promise<any[]> {
     return this.execute(async () => {
       const where = this.buildOperatorFilters(filters);
       const orderBy = this.buildOperatorOrderBy(sortBy);
 
-      // If we need to filter by TVS (Total Value Staked), we need to aggregate first
-      // because TVS is a sum of strategy shares which is not directly on the operator table
+      // If we need to filter by TVS, use precomputed total_tvs from operator_state
       if (filters.min_tvs === undefined && filters.max_tvs === undefined) {
         // Standard query without TVS filtering
         return this.prisma.operators.findMany({
@@ -47,121 +46,28 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
           take: pagination.limit,
         });
       } else {
-        // TVS filtering requires aggregation
-        // 1. Find all operators matching other filters
-        const matching = await this.prisma.operators.findMany({
-          where,
-          select: { id: true },
-        });
-        const filteredIds = matching.map((m) => m.id);
-
-        if (filteredIds.length === 0) return [];
-
-        // 2. Aggregate TVS for these operators
-        const aggregates = await this.prisma.operator_strategy_state.groupBy({
-          by: ["operator_id"],
-          where: { operator_id: { in: filteredIds } },
-          _sum: { max_magnitude: true },
-        });
-
-        // 3. Filter by TVS
-        const tvsMap = new Map<string, number>(
-          aggregates.map((agg): [string, number] => [
-            agg.operator_id,
-            Number(agg._sum.max_magnitude || 0),
-          ])
-        );
-
-        let sortedIds = filteredIds.filter((id) => {
-          const total = tvsMap.get(id) || 0;
-          if (filters.min_tvs !== undefined && total < filters.min_tvs)
-            return false;
-          if (filters.max_tvs !== undefined && total > filters.max_tvs)
-            return false;
-          return true;
-        });
-
-        // 4. Apply risk score filtering if needed (exclude_zero_risk defaults to true)
-        if (filters.exclude_zero_risk !== false) {
-          const analytics = await this.prisma.operator_analytics.findMany({
-            where: {
-              operator_id: { in: sortedIds },
-            },
-            distinct: ["operator_id"],
-            orderBy: { date: "desc" },
-            select: { operator_id: true, risk_score: true },
-          });
-
-          const riskMap = new Map(
-            analytics.map((a) => [a.operator_id, Number(a.risk_score ?? 0)])
-          );
-
-          sortedIds = sortedIds.filter((id) => {
-            const risk = riskMap.get(id) ?? 0;
-            return risk > 0;
-          });
+        // TVS filtering now uses precomputed total_tvs from operator_state
+        // Build TVS filter conditions
+        const tvsFilter: any = {};
+        if (filters.min_tvs !== undefined) {
+          tvsFilter.gte = filters.min_tvs;
+        }
+        if (filters.max_tvs !== undefined) {
+          tvsFilter.lte = filters.max_tvs;
         }
 
-        // 5. Sort manually if needed (Prisma can't sort by aggregated value easily in findMany)
-        // If sorting by TVS (which is likely if filtering by it), sort the IDs
-        // For other sorts, we might need to fetch data first or rely on the final query order (which might be tricky with 'in')
-        // For simplicity, let's assume if TVS filter is on, we might want to sort by TVS or just respect the input sort
-        // If the input sort is NOT TVS, we should probably let the final query handle it if possible,
-        // but 'where in' doesn't guarantee order.
-        // So we should sort the IDs here.
+        // Add TVS filter to operator_state relation
+        const whereWithTvs = {
+          ...where,
+          operator_state: {
+            ...(where.operator_state || {}),
+            total_tvs: tvsFilter,
+          },
+        };
 
-        // TODO: Implement proper sorting for aggregated results
-        // For now, if we filtered by TVS, let's sort by TVS descending by default if no other sort specified
-        // or if sort is by TVS
-        // (Assuming OperatorSortField doesn't have TVS yet, but let's say it's implicit or default)
-
-        // Let's just sort by TVS desc for now as a fallback or if requested
-        // But wait, the user might want to sort by something else.
-        // Let's fetch the objects and sort in memory if the result set is small (page size)
-        // But we need to paginate the IDs first.
-
-        // Sort IDs by TVS if that's the goal?
-        // Let's just sort by TVS for now to be consistent with the filter
-        sortedIds.sort((a, b) => {
-          const tvsA = tvsMap.get(a) || 0;
-          const tvsB = tvsMap.get(b) || 0;
-          return tvsB - tvsA; // Descending
-        });
-
-        // Also sort by risk score if needed?
-        if (filters.exclude_zero_risk !== false) {
-          // If we are filtering by risk, maybe we should also sort by it?
-          // The original code didn't seem to sort by risk explicitly unless requested.
-          // But let's check the previous implementation.
-          // It did:
-          /*
-             if (filters.exclude_zero_risk) {
-                // ... fetch analytics ...
-                withRisk.sort((a, b) => a.risk - b.risk); // Ascending? That seems wrong for "best first"
-                // Actually the previous code (lines 190) sorted a.risk - b.risk.
-                // If risk is "risk score", usually higher is better or worse?
-                // If it's 0-100, usually 100 is best (safest) or worst (riskiest)?
-                // Assuming 100 is best (EigenLayer usually uses score where higher is better/safer).
-                // So sorting asc means lowest risk score first? That seems odd.
-                // Let's assume we want high scores.
-                // But wait, the previous code was:
-                // withRisk.sort((a, b) => a.risk - b.risk);
-                // This sorts ascending (0, 10, ...).
-                // Maybe "risk" means "riskiness"?
-                // Let's stick to what was there or improve it.
-                // Actually, let's just respect the passed `sortBy` if possible.
-             }
-          */
-        }
-
-        const pagedIds = sortedIds.slice(
-          pagination.offset,
-          pagination.offset + pagination.limit
-        );
-        if (pagedIds.length === 0) return [];
-
-        const operators = await this.prisma.operators.findMany({
-          where: { id: { in: pagedIds } },
+        // Fetch operators matching TVS filter
+        let operators = await this.prisma.operators.findMany({
+          where: whereWithTvs,
           include: {
             operator_state: true,
             operator_metadata: true,
@@ -177,8 +83,40 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
           },
         });
 
-        const idToOperator = new Map(operators.map((op) => [op.id, op]));
-        return pagedIds.map((id) => idToOperator.get(id)!);
+        // Apply risk score filtering if needed (exclude_zero_risk defaults to true)
+        if (filters.exclude_zero_risk !== false) {
+          operators = operators.filter((op) => {
+            const riskScore = op.operator_analytics?.[0]?.risk_score;
+            return riskScore && Number(riskScore) > 0;
+          });
+        }
+
+        // Sort by TVS (or other field) then paginate
+        if (sortBy === OperatorSortField.TVS || !sortBy) {
+          operators.sort((a, b) => {
+            const tvsA = Number(a.operator_state?.total_tvs || 0);
+            const tvsB = Number(b.operator_state?.total_tvs || 0);
+            return sortOrder === "desc" ? tvsB - tvsA : tvsA - tvsB;
+          });
+        } else if (sortBy === OperatorSortField.RISK_SCORE) {
+          operators.sort((a, b) => {
+            const riskA = Number(a.operator_analytics?.[0]?.risk_score || 0);
+            const riskB = Number(b.operator_analytics?.[0]?.risk_score || 0);
+            return sortOrder === "desc" ? riskB - riskA : riskA - riskB;
+          });
+        } else if (sortBy === OperatorSortField.DELEGATOR_COUNT) {
+          operators.sort((a, b) => {
+            const delA = a.operator_state?.active_delegators || 0;
+            const delB = b.operator_state?.active_delegators || 0;
+            return sortOrder === "desc" ? delB - delA : delA - delB;
+          });
+        }
+
+        // Paginate
+        return operators.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
       }
     });
   }
@@ -207,7 +145,7 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
           });
 
           const riskMap = new Map(
-            analytics.map((a) => [a.operator_id, Number(a.risk_score ?? 0)])
+            analytics.map((a) => [a.operator_id, Number(a.risk_score ?? 0)]),
           );
 
           const count = ids.reduce((acc, id) => {
@@ -236,7 +174,7 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
           aggregates.map((agg): [string, number] => [
             agg.operator_id,
             Number(agg._sum.max_magnitude || 0),
-          ])
+          ]),
         );
 
         const filtered = filteredIds.filter((id) => {
@@ -261,7 +199,7 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
           });
 
           const riskMap = new Map(
-            analytics.map((a) => [a.operator_id, Number(a.risk_score ?? 0)])
+            analytics.map((a) => [a.operator_id, Number(a.risk_score ?? 0)]),
           );
 
           const riskFiltered = filtered.filter((id) => {
@@ -296,7 +234,7 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
   async findDailySnapshots(
     operatorId: string,
     dateFrom: Date,
-    dateTo: Date
+    dateTo: Date,
   ): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_daily_snapshots.findMany({

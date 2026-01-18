@@ -8,6 +8,7 @@ import { OperatorDelegatorRepository } from "./repositories/operator-delegator.r
 import { OperatorAVSRepository } from "./repositories/operator-avs.repository";
 import { OperatorAllocationRepository } from "./repositories/operator-allocation.repository";
 import { OperatorAnalyticsRepository } from "./repositories/operator-analytics.repository";
+import { TokenMetadataService } from "@/core/services/token-metadata.service";
 
 @Module({
   controllers: [OperatorsController],
@@ -20,6 +21,7 @@ import { OperatorAnalyticsRepository } from "./repositories/operator-analytics.r
     OperatorAllocationRepository,
     OperatorAnalyticsRepository,
     OperatorMapper,
+    TokenMetadataService,
   ],
   exports: [OperatorService],
 })

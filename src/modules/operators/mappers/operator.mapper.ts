@@ -26,22 +26,32 @@ import {
 } from "../dto/commission-response.dto";
 
 import { CacheService } from "@/core/cache/cache.service";
+import {
+  TokenMetadataService,
+  StrategyMetadata,
+} from "@/core/services/token-metadata.service";
 
 @Injectable()
 export class OperatorMapper {
-  constructor(private cacheService: CacheService) {}
+  // Cache for strategy metadata to avoid repeated lookups within a request
+  private strategyMetadataCache = new Map<string, StrategyMetadata | null>();
+
+  constructor(
+    private cacheService: CacheService,
+    private tokenMetadataService: TokenMetadataService,
+  ) {}
   async mapToListItem(data: any): Promise<OperatorListItem> {
     const state = data.operator_state;
     const analytics = data.operator_analytics?.[0];
     const metadata = await this.getOperatorMetadataByUri(
-      data.operator_state?.current_metadata_uri || ""
+      data.operator_state?.current_metadata_uri || "",
     );
 
     return {
       operator_id: data.id,
       operator_address: data.address,
       is_active: state?.is_active ?? false,
-      total_tvs: this.calculateTotalTVS(data.operator_strategy_state),
+      total_tvs: state?.total_tvs?.toString() ?? "0",
       delegator_count: state?.active_delegators ?? 0,
       active_avs_count: state?.active_avs_count ?? 0,
       operational_days: state?.operational_days ?? 0,
@@ -57,7 +67,7 @@ export class OperatorMapper {
     const state = data.operator_state;
     const registration = data.operator_registration;
     const metadata = await this.getOperatorMetadataByUri(
-      data.operator_state?.current_metadata_uri || ""
+      data.operator_state?.current_metadata_uri || "",
     );
 
     return {
@@ -93,7 +103,7 @@ export class OperatorMapper {
     const totalShares =
       data.operator_delegator_shares?.reduce(
         (sum: number, share: any) => sum + parseFloat(share.shares.toString()),
-        0
+        0,
       ) ?? 0;
 
     return {
@@ -122,7 +132,7 @@ export class OperatorMapper {
   private mapStrategyBreakdown(strategyState: any): StrategyBreakdown {
     const maxMag = parseFloat(strategyState.max_magnitude.toString());
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude.toString(),
     );
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
@@ -141,7 +151,7 @@ export class OperatorMapper {
 
     const total = strategies.reduce(
       (sum, s) => sum + parseFloat(s.max_magnitude.toString()),
-      0
+      0,
     );
 
     return total.toString();
@@ -149,20 +159,98 @@ export class OperatorMapper {
 
   // TODO: Review this might have to fetch the data from eigenlayer strategy manager contract (What happens when we are indexing diffrent chains tho)
   private getStrategyName(address: string): string {
+    // Synchronous fallback - used when async is not available
+    // The async version should be preferred when possible
+    const cached = this.strategyMetadataCache.get(address?.toLowerCase());
+    if (cached) return cached.name;
+
     // Strategy name mapping - would be fetched from metadata or config
     const names: Record<string, string> = {
       // Add known strategy addresses and names
     };
-    return names[address?.toLowerCase()] || FormatUtils.formatAddress(address || "");
+    return (
+      names[address?.toLowerCase()] || FormatUtils.formatAddress(address || "")
+    );
+  }
+
+  /**
+   * Async method to get strategy name from database
+   * Preferred over getStrategyName when async is possible
+   */
+  async getStrategyNameAsync(address: string): Promise<string> {
+    if (!address) return "";
+
+    const lowerAddress = address.toLowerCase();
+
+    // Check local cache first
+    if (this.strategyMetadataCache.has(lowerAddress)) {
+      const cached = this.strategyMetadataCache.get(lowerAddress);
+      return cached?.name || FormatUtils.formatAddress(address);
+    }
+
+    // Fetch from TokenMetadataService
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(address);
+    this.strategyMetadataCache.set(lowerAddress, metadata);
+
+    return metadata?.name || FormatUtils.formatAddress(address);
+  }
+
+  /**
+   * Async method to get strategy symbol from database
+   */
+  async getStrategySymbolAsync(address: string): Promise<string> {
+    if (!address) return "UNKNOWN";
+
+    const lowerAddress = address.toLowerCase();
+
+    // Check local cache first
+    if (this.strategyMetadataCache.has(lowerAddress)) {
+      const cached = this.strategyMetadataCache.get(lowerAddress);
+      return cached?.symbol || "UNKNOWN";
+    }
+
+    // Fetch from TokenMetadataService
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(address);
+    this.strategyMetadataCache.set(lowerAddress, metadata);
+
+    return metadata?.symbol || "UNKNOWN";
+  }
+
+  /**
+   * Preload strategy metadata for a batch of addresses
+   * Call this before processing many strategies to minimize DB queries
+   */
+  async preloadStrategyMetadata(addresses: string[]): Promise<void> {
+    const uniqueAddresses = [...new Set(addresses.filter(Boolean))];
+    const uncached = uniqueAddresses.filter(
+      (addr) => !this.strategyMetadataCache.has(addr.toLowerCase()),
+    );
+
+    if (uncached.length === 0) return;
+
+    const metadataMap =
+      await this.tokenMetadataService.getStrategyMetadataBatch(uncached);
+    for (const [address, metadata] of metadataMap) {
+      this.strategyMetadataCache.set(address.toLowerCase(), metadata);
+    }
+  }
+
+  /**
+   * Clear the local strategy metadata cache
+   */
+  clearStrategyMetadataCache(): void {
+    this.strategyMetadataCache.clear();
   }
 
   mapToStrategyListItem(
     strategyState: any,
-    delegatorCount: number
+    delegatorCount: number,
   ): OperatorStrategyListItem {
     const maxMag = parseFloat(strategyState.max_magnitude.toString());
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude.toString(),
     );
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
@@ -172,7 +260,7 @@ export class OperatorMapper {
       strategy_address: strategyState.strategies?.address ?? "",
       strategy_name: this.getStrategyName(strategyState.strategies?.address),
       strategy_symbol: this.getStrategySymbol(
-        strategyState.strategies?.address
+        strategyState.strategies?.address,
       ),
       max_magnitude: strategyState.max_magnitude.toString(),
       encumbered_magnitude: strategyState.encumbered_magnitude.toString(),
@@ -188,11 +276,11 @@ export class OperatorMapper {
     strategyState: any,
     allocations: any[],
     delegators: any[],
-    totalShares: string
+    totalShares: string,
   ): OperatorStrategyDetail {
     const maxMag = parseFloat(strategyState.max_magnitude.toString());
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude.toString(),
     );
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
@@ -214,7 +302,7 @@ export class OperatorMapper {
     const sortedDelegators = delegators
       .sort(
         (a, b) =>
-          parseFloat(b.shares.toString()) - parseFloat(a.shares.toString())
+          parseFloat(b.shares.toString()) - parseFloat(a.shares.toString()),
       )
       .slice(0, 10);
 
@@ -225,7 +313,7 @@ export class OperatorMapper {
       percentage:
         totalSharesNum > 0
           ? ((parseFloat(d.shares.toString()) / totalSharesNum) * 100).toFixed(
-              2
+              2,
             )
           : "0",
     }));
@@ -260,7 +348,7 @@ export class OperatorMapper {
 
   // TODO: Optimise how we handle getting metadata
   private async getOperatorMetadataByUri(
-    uri: string
+    uri: string,
   ): Promise<OperatorMetadata | null> {
     try {
       // Only fetch if it's a fully qualified HTTP(S) URL
@@ -371,7 +459,7 @@ export class OperatorMapper {
           activity.data.operator_slashing_amounts?.reduce(
             (sum: number, amt: any) =>
               sum + parseFloat(amt.wad_slashed.toString()),
-            0
+            0,
           ) || 0;
         return {
           ...baseActivity,
@@ -383,7 +471,7 @@ export class OperatorMapper {
               (amt: any) => ({
                 strategy_address: amt.strategies?.address,
                 wad_slashed: amt.wad_slashed.toString(),
-              })
+              }),
             ),
           },
         };
@@ -418,7 +506,7 @@ export class OperatorMapper {
   mapToAVSRelationshipDetail(
     relationship: any,
     operatorSets: any[],
-    commissions: any[]
+    commissions: any[],
   ): AVSRelationshipDetail {
     // Map operator sets
     const mappedOperatorSets = operatorSets.map((set) => ({
@@ -478,10 +566,10 @@ export class OperatorMapper {
       if (index > 0) {
         const currentTime = new Date(item.status_changed_at).getTime();
         const previousTime = new Date(
-          history[index - 1].status_changed_at
+          history[index - 1].status_changed_at,
         ).getTime();
         durationSincePrevious = Math.floor(
-          (currentTime - previousTime) / (1000 * 60 * 60 * 24)
+          (currentTime - previousTime) / (1000 * 60 * 60 * 24),
         );
       }
 
@@ -529,36 +617,36 @@ export class OperatorMapper {
     const piCommission = rates.find((c) => c.commission_type === "pi");
     const avsCommissions = rates.filter((c) => c.commission_type === "avs");
     const operatorSetCommissions = rates.filter(
-      (c) => c.commission_type === "operator_set"
+      (c) => c.commission_type === "operator_set",
     );
 
     // Calculate days since last change
     let daysSinceLastChange = 0;
     if (stats.last_change_date) {
       const diffTime = Math.abs(
-        new Date().getTime() - stats.last_change_date.getTime()
+        new Date().getTime() - stats.last_change_date.getTime(),
       );
       daysSinceLastChange = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     } else {
-        // If no history, use the oldest activation date from current rates as a proxy
-        // or just return 0/null. Let's use 0 for now if no data.
-        // Better: if no history, they are likely new or very stable since registration.
-        // We could look at registration date but we don't have it here easily.
-        // Let's stick to 0 if no history found.
-        daysSinceLastChange = 0; 
+      // If no history, use the oldest activation date from current rates as a proxy
+      // or just return 0/null. Let's use 0 for now if no data.
+      // Better: if no history, they are likely new or very stable since registration.
+      // We could look at registration date but we don't have it here easily.
+      // Let's stick to 0 if no history found.
+      daysSinceLastChange = 0;
     }
 
     // Check for pending changes
     const isChangePending = rates.some(
-      (c) => c.upcoming_bips !== null || c.upcoming_activated_at !== null
+      (c) => c.upcoming_bips !== null || c.upcoming_activated_at !== null,
     );
 
     // Calculate max historical bips (compare history max with current max)
-    const currentMaxBips = Math.max(
-      ...rates.map((c) => c.current_bips),
-      0
+    const currentMaxBips = Math.max(...rates.map((c) => c.current_bips), 0);
+    const maxHistoricalBips = Math.max(
+      stats.max_historical_bips,
+      currentMaxBips,
     );
-    const maxHistoricalBips = Math.max(stats.max_historical_bips, currentMaxBips);
 
     return {
       pi_commission: piCommission
@@ -621,7 +709,7 @@ export class OperatorMapper {
         strategy_id: share.strategy_id,
         strategy_name: this.getStrategyName(share.strategies?.address),
         shares: share.shares.toString(),
-      })
+      }),
     );
 
     return {
@@ -639,7 +727,7 @@ export class OperatorMapper {
   mapToDelegatorDetail(delegator: any): any {
     const totalShares = (delegator.operator_delegator_shares || []).reduce(
       (sum: number, share: any) => sum + parseFloat(share.shares.toString()),
-      0
+      0,
     );
 
     let delegationDurationDays = null;
@@ -649,7 +737,7 @@ export class OperatorMapper {
         ? new Date(delegator.undelegated_at)
         : new Date();
       delegationDurationDays = Math.floor(
-        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
     }
 
@@ -671,7 +759,7 @@ export class OperatorMapper {
           shares_percentage: percentage,
           last_updated_at: share.updated_at?.toISOString() || "",
         };
-      }
+      },
     );
 
     return {
@@ -736,7 +824,7 @@ export class OperatorMapper {
         });
       }
       avsData.strategies.get(strategyId).allocated_magnitude += parseFloat(
-        alloc.magnitude.toString()
+        alloc.magnitude.toString(),
       );
     });
 
@@ -757,7 +845,7 @@ export class OperatorMapper {
       const strategyId = alloc.strategy_id;
       if (!byStrategyMap.has(strategyId)) {
         const state = strategyStates.find(
-          (s: any) => s.strategy_id === strategyId
+          (s: any) => s.strategy_id === strategyId,
         );
         byStrategyMap.set(strategyId, {
           strategy_id: strategyId,
@@ -789,7 +877,7 @@ export class OperatorMapper {
 
     const totalEncumbered = allocations.reduce(
       (sum: number, a: any) => sum + parseFloat(a.magnitude.toString()),
-      0
+      0,
     );
 
     return {
@@ -918,7 +1006,8 @@ export class OperatorMapper {
         },
         slashing: {
           count: analytics.slashing_event_count || 0,
-          lifetime_amount: analytics.lifetime_slashing_amount?.toString() || "0",
+          lifetime_amount:
+            analytics.lifetime_slashing_amount?.toString() || "0",
         },
         activity: {
           operational_days: analytics.operational_days || 0,
@@ -998,7 +1087,7 @@ export class OperatorMapper {
       history: snapshots.map((s) => {
         const maxMag = parseFloat(s.max_magnitude.toString());
         const encumbered = parseFloat(
-          s.encumbered_magnitude?.toString() || "0"
+          s.encumbered_magnitude?.toString() || "0",
         );
         const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
@@ -1078,7 +1167,7 @@ export class OperatorMapper {
       const incidentTotal = inc.operator_slashing_amounts.reduce(
         (iSum: number, amt: any) =>
           iSum + parseFloat(amt.wad_slashed.toString()),
-        0
+        0,
       );
       return sum + incidentTotal;
     }, 0);
@@ -1165,53 +1254,53 @@ export class OperatorMapper {
 
     // Calculate TVS for operator
     const operatorTVS = this.calculateTotalTVS(
-      operator.operator_strategy_state
+      operator.operator_strategy_state,
     );
     const operatorDelegators = operator.operator_state?.active_delegators || 0;
     const operatorAVS = operator.operator_state?.active_avs_count || 0;
     const operatorDays = operator.operator_state?.operational_days || 0;
     const operatorRisk = parseFloat(
-      operator.operator_analytics[0]?.risk_score?.toString() || "0"
+      operator.operator_analytics[0]?.risk_score?.toString() || "0",
     );
 
     // Calculate percentiles
     const allTVS = allOperators.map((op: any) =>
-      parseFloat(this.calculateTotalTVS(op.operator_strategy_state))
+      parseFloat(this.calculateTotalTVS(op.operator_strategy_state)),
     );
     const allDelegators = allOperators.map(
-      (op: any) => op.operator_state?.active_delegators || 0
+      (op: any) => op.operator_state?.active_delegators || 0,
     );
     const allAVS = allOperators.map(
-      (op: any) => op.operator_state?.active_avs_count || 0
+      (op: any) => op.operator_state?.active_avs_count || 0,
     );
     const allDays = allOperators.map(
-      (op: any) => op.operator_state?.operational_days || 0
+      (op: any) => op.operator_state?.operational_days || 0,
     );
     const allRisk = allOperators.map((op: any) =>
-      parseFloat(op.operator_analytics[0]?.risk_score?.toString() || "0")
+      parseFloat(op.operator_analytics[0]?.risk_score?.toString() || "0"),
     );
 
     return {
       rankings: {
         tvs_percentile: this.calculatePercentile(
           allTVS,
-          parseFloat(operatorTVS)
+          parseFloat(operatorTVS),
         ).toFixed(2),
         delegator_count_percentile: this.calculatePercentile(
           allDelegators,
-          operatorDelegators
+          operatorDelegators,
         ).toFixed(2),
         avs_count_percentile: this.calculatePercentile(
           allAVS,
-          operatorAVS
+          operatorAVS,
         ).toFixed(2),
         operational_days_percentile: this.calculatePercentile(
           allDays,
-          operatorDays
+          operatorDays,
         ).toFixed(2),
         risk_score_percentile: this.calculatePercentile(
           allRisk,
-          operatorRisk
+          operatorRisk,
         ).toFixed(2),
       },
       absolute_values: {
@@ -1224,7 +1313,7 @@ export class OperatorMapper {
       network_stats: {
         total_operators: allOperators.length,
         active_operators: allOperators.filter(
-          (op: any) => op.operator_state?.is_active
+          (op: any) => op.operator_state?.is_active,
         ).length,
       },
       date:
@@ -1243,7 +1332,7 @@ export class OperatorMapper {
   mapToNetworkComparison(operator: any, networkAvg: any): any {
     const state = operator.operator_state;
     const operatorTVS = this.calculateTotalTVS(
-      operator.operator_strategy_state
+      operator.operator_strategy_state,
     );
     const operatorDelegators = state?.active_delegators || 0;
     const operatorAVS = state?.active_avs_count || 0;
@@ -1252,16 +1341,16 @@ export class OperatorMapper {
     const meanTVS = parseFloat(networkAvg.mean_tvs?.toString() || "0");
     const medianTVS = parseFloat(networkAvg.median_tvs?.toString() || "0");
     const meanDelegators = parseFloat(
-      networkAvg.mean_delegators_per_operator?.toString() || "0"
+      networkAvg.mean_delegators_per_operator?.toString() || "0",
     );
     const medianDelegators = parseFloat(
-      networkAvg.median_delegators_per_operator?.toString() || "0"
+      networkAvg.median_delegators_per_operator?.toString() || "0",
     );
     const meanAVS = parseFloat(
-      networkAvg.mean_avs_per_operator?.toString() || "0"
+      networkAvg.mean_avs_per_operator?.toString() || "0",
     );
     const meanCommission = parseFloat(
-      networkAvg.mean_pi_commission_bips?.toString() || "0"
+      networkAvg.mean_pi_commission_bips?.toString() || "0",
     );
 
     return {

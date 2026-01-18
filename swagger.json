@@ -2171,6 +2171,398 @@
         ]
       }
     },
+    "/api/v1/strategies/stats": {
+      "get": {
+        "description": "Network-wide strategy statistics including total TVS and top strategies",
+        "operationId": "StrategiesController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy statistics"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get network strategy statistics",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies": {
+      "get": {
+        "description": "List all EigenLayer strategies with TVS, operator counts, and token metadata",
+        "operationId": "StrategiesController_findAll",
+        "parameters": [
+          {
+            "name": "min_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Minimum total TVS in USD",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Maximum total TVS in USD",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_operators",
+            "required": false,
+            "in": "query",
+            "description": "Minimum number of operators",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Filter by token category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search by address, symbol, or name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "has_price_feed",
+            "required": false,
+            "in": "query",
+            "description": "Filter by price feed availability",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "operator_count",
+                "delegator_count"
+              ]
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategies list"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all strategies with filters and pagination",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}": {
+      "get": {
+        "description": "Detailed information about a specific strategy including token metadata and links",
+        "operationId": "StrategiesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy detail"
+          },
+          "404": {
+            "description": "Strategy not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy detail",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/operators": {
+      "get": {
+        "description": "List operators that have delegated to this strategy, sorted by TVS",
+        "operationId": "StrategiesController_getOperators",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operators using strategy",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/delegators": {
+      "get": {
+        "description": "List delegators (stakers) who have staked in this strategy, sorted by shares",
+        "operationId": "StrategiesController_getDelegators",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get top delegators for strategy",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/price-history": {
+      "get": {
+        "description": "Historical price data for the strategy's underlying token",
+        "operationId": "StrategiesController_getPriceHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved price history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get token price history",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/tvs-history": {
+      "get": {
+        "description": "Historical TVS (Total Value Secured) for the strategy across all operators",
+        "operationId": "StrategiesController_getTVSHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved TVS history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy TVS history",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_check",

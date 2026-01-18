@@ -20,7 +20,7 @@ import { HealthModule } from "./modules/health/health.module";
 // import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { SearchModule } from "./modules/search/search.module";
 import { NetworkModule } from "./modules/network/network.module";
-// import { StrategiesModule } from "./modules/strategies/strategies.module";
+import { StrategiesModule } from "./modules/strategies/strategies.module";
 
 @Module({
   imports: [
@@ -34,7 +34,7 @@ import { NetworkModule } from "./modules/network/network.module";
     // AnalyticsModule,
     SearchModule,
     NetworkModule,
-    // StrategiesModule,
+    StrategiesModule,
     HealthModule,
   ],
   providers: [

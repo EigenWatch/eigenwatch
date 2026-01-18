@@ -72,6 +72,26 @@ model network_daily_aggregates {
   median_avs_per_operator        Decimal? @db.Decimal
   mean_pi_commission_bips        Decimal? @db.Decimal
   median_pi_commission_bips      Decimal? @db.Decimal
+  new_operators_24h              Int?
+  total_strategies               Int?
+  mean_strategies_per_operator   Decimal? @db.Decimal
+  median_strategies_per_operator Decimal? @db.Decimal
+  new_delegators_24h             Int?
+  total_shares                   Decimal? @db.Decimal
+  mean_shares_per_delegator      Decimal? @db.Decimal
+  median_shares_per_delegator    Decimal? @db.Decimal
+  total_avs                      Int?
+  active_avs                     Int?
+  p25_pi_commission_bips         Decimal? @db.Decimal
+  p75_pi_commission_bips         Decimal? @db.Decimal
+  p90_pi_commission_bips         Decimal? @db.Decimal
+  total_slashing_incidents       Int?
+  slashing_incidents_24h         Int?
+  operators_slashed_count        Int?
+  mean_risk_score                Decimal? @db.Decimal
+  median_risk_score              Decimal? @db.Decimal
+  operators_high_risk_count      Int?
+  operators_low_risk_count       Int?
 
   @@index([snapshot_date], map: "idx_network_agg_date")
 }
@@ -346,6 +366,7 @@ model operator_daily_snapshots {
   slash_event_count_to_date Int?
   operational_days          Int?
   is_active                 Boolean?
+  total_tvs                 Decimal?  @db.Decimal
   operators                 operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([operator_id, snapshot_date], map: "operator_daily_snapshots_operator_date_key")
@@ -595,6 +616,8 @@ model operator_state {
   operational_days               Int?
   created_at                     DateTime  @default(now()) @db.Timestamp(6)
   updated_at                     DateTime  @default(now()) @db.Timestamp(6)
+  total_tvs                      Decimal?  @db.Decimal
+  tvs_updated_at                 DateTime? @db.Timestamp(6)
   operators                      operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([is_active], map: "idx_operator_active")
@@ -637,6 +660,8 @@ model operator_strategy_state {
   utilization_rate                   Decimal?   @db.Decimal
   created_at                         DateTime   @default(now()) @db.Timestamp(6)
   updated_at                         DateTime   @default(now()) @db.Timestamp(6)
+  tvs_usd                            Decimal?   @db.Decimal
+  tvs_updated_at                     DateTime?  @db.Timestamp(6)
   operators                          operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   strategies                         strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -645,6 +670,7 @@ model operator_strategy_state {
   @@index([utilization_rate], map: "idx_operator_strategy_utilization")
   @@index([operator_id], map: "ix_operator_strategy_state_operator_id")
   @@index([strategy_id], map: "ix_operator_strategy_state_strategy_id")
+  @@index([tvs_usd], map: "idx_operator_strategy_tvs")
 }
 
 model operators {
@@ -758,4 +784,155 @@ model volatility_metrics {
   @@index([entity_id], map: "ix_volatility_metrics_entity_id")
   @@index([entity_type], map: "ix_volatility_metrics_entity_type")
   @@index([metric_type], map: "ix_volatility_metrics_metric_type")
+}
+
+model data_completeness_metrics {
+  id                  Int       @id @default(autoincrement())
+  metric_type         String    @db.VarChar
+  period              String?   @db.VarChar
+  period_start        DateTime? @db.Date
+  period_end          DateTime? @db.Date
+  expected_count      Int?
+  actual_count        Int?
+  completeness_pct    Decimal?  @db.Decimal
+  records_with_errors Int?
+  records_incomplete  Int?
+  breakdown           Json?     @db.Json
+  measured_at         DateTime? @db.Timestamp(6)
+
+  @@index([period_start, period_end], map: "idx_completeness_period")
+  @@index([metric_type, measured_at], map: "idx_completeness_type")
+  @@index([measured_at], map: "ix_data_completeness_metrics_measured_at")
+  @@index([metric_type], map: "ix_data_completeness_metrics_metric_type")
+}
+
+model external_api_calls {
+  id                   Int       @id @default(autoincrement())
+  service              String    @db.VarChar
+  endpoint             String?   @db.VarChar
+  method               String?   @db.VarChar
+  request_params       Json?     @db.Json
+  tokens_requested     Int?
+  status_code          Int?
+  response_time_ms     Int?
+  success              Boolean?
+  error_message        String?   @db.VarChar
+  rate_limit_remaining Int?
+  rate_limit_reset_at  DateTime? @db.Timestamp(6)
+  estimated_cost_usd   Decimal?  @db.Decimal
+  triggered_by         String?   @db.VarChar
+  dagster_run_id       String?   @db.VarChar
+  called_at            DateTime? @db.Timestamp(6)
+
+  @@index([service, called_at], map: "idx_api_calls_service_date")
+  @@index([triggered_by, called_at], map: "idx_api_calls_triggered")
+  @@index([called_at], map: "ix_external_api_calls_called_at")
+  @@index([service], map: "ix_external_api_calls_service")
+  @@index([triggered_by], map: "ix_external_api_calls_triggered_by")
+}
+
+model historical_tvs_snapshots {
+  operator_id           String   @db.VarChar
+  strategy_id           String   @db.VarChar
+  snapshot_date         DateTime @db.Date
+  shares                Decimal  @db.Decimal
+  exchange_rate         Decimal? @db.Decimal
+  token_price_usd       Decimal? @db.Decimal
+  tvs_usd               Decimal? @db.Decimal
+  is_complete           Boolean?
+  rate_is_approximation Boolean?
+  price_source          String?  @db.VarChar
+  has_slashing_caveat   Boolean?
+
+  @@id([operator_id, strategy_id, snapshot_date])
+  @@index([is_complete], map: "idx_hist_tvs_complete")
+  @@index([snapshot_date], map: "idx_hist_tvs_date")
+  @@index([operator_id], map: "idx_hist_tvs_operator")
+  @@index([strategy_id], map: "idx_hist_tvs_strategy")
+}
+
+model pipeline_sync_status {
+  id                     Int       @id @default(autoincrement())
+  pipeline               String    @db.VarChar
+  event_type             String    @db.VarChar
+  contract               String?   @db.VarChar
+  latest_block_onchain   Int?
+  latest_block_indexed   Int?
+  blocks_behind          Int?
+  latest_event_timestamp DateTime? @db.Timestamp(6)
+  lag_seconds            Int?
+  total_records          Int?
+  records_last_24h       Int?
+  records_last_hour      Int?
+  status                 String?   @db.VarChar
+  last_error             String?   @db.VarChar
+  measured_at            DateTime? @db.Timestamp(6)
+
+  @@index([status], map: "idx_sync_status_health")
+  @@index([measured_at], map: "idx_sync_status_measured")
+  @@index([pipeline, event_type], map: "idx_sync_status_pipeline")
+  @@index([measured_at], map: "ix_pipeline_sync_status_measured_at")
+}
+
+model strategy_exchange_rates {
+  strategy_address          String   @id @db.VarChar
+  shares_to_underlying_rate Decimal  @db.Decimal
+  underlying_token          String?  @db.VarChar
+  rate_updated_at           DateTime @db.Timestamp(6)
+  rate_updated_block        Int?
+  created_at                DateTime @default(now()) @db.Timestamp(6)
+  updated_at                DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([rate_updated_at], map: "idx_exchange_rate_updated")
+}
+
+model token_metadata {
+  contract_address      String                @id @db.VarChar
+  coingecko_id          String?               @unique(map: "ix_token_metadata_coingecko_id") @db.VarChar
+  symbol                String                @db.VarChar
+  name                  String                @db.VarChar
+  asset_platform_id     String?               @db.VarChar
+  description           String?               @db.VarChar
+  categories            String[]              @db.VarChar
+  homepage_url          String?               @db.VarChar
+  twitter_url           String?               @db.VarChar
+  discord_url           String?               @db.VarChar
+  github_urls           String[]              @db.VarChar
+  logo_large            String?               @db.VarChar
+  logo_small            String?               @db.VarChar
+  decimals              Int?
+  last_synced_at        DateTime?             @db.Timestamp(6)
+  first_seen_at         DateTime?             @db.Timestamp(6)
+  price_available_from  DateTime?             @db.Date
+  price_available_to    DateTime?             @db.Date
+  backfill_status       String?               @db.VarChar
+  backfill_attempted_at DateTime?             @db.Timestamp(6)
+  backfill_error        String?               @db.VarChar
+  is_rebasing           Boolean?
+  wrapped_equivalent    String?               @db.VarChar
+  created_at            DateTime              @default(now()) @db.Timestamp(6)
+  updated_at            DateTime              @default(now()) @db.Timestamp(6)
+  token_price_history   token_price_history[]
+
+  @@index([backfill_status], map: "idx_token_metadata_backfill")
+  @@index([coingecko_id], map: "idx_token_metadata_coingecko")
+  @@index([symbol], map: "idx_token_metadata_symbol")
+  @@index([symbol], map: "ix_token_metadata_symbol")
+}
+
+model token_price_history {
+  id               Int            @id @default(autoincrement())
+  token_address    String         @db.VarChar
+  price_usd        Decimal        @db.Decimal
+  market_cap_usd   Decimal?       @db.Decimal
+  total_volume_usd Decimal?       @db.Decimal
+  timestamp        DateTime       @db.Timestamp(6)
+  source           String?        @db.VarChar
+  token_metadata   token_metadata @relation(fields: [token_address], references: [contract_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([token_address, timestamp], map: "uq_token_price_ts")
+  @@index([timestamp], map: "idx_token_price_date")
+  @@index([token_address, timestamp], map: "idx_token_price_ts")
+  @@index([timestamp], map: "ix_token_price_history_timestamp")
+  @@index([token_address], map: "ix_token_price_history_token_address")
 }
