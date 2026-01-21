@@ -84,19 +84,19 @@ export class OperatorsController extends BaseController<any> {
 
     const { operators, total } = await this.operatorService.findOperators(
       query,
-      paginationParams
+      paginationParams,
     );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.paginated(
       operators,
       paginationMeta,
-      "Operators retrieved successfully"
+      "Operators retrieved successfully",
     );
   }
 
@@ -124,7 +124,7 @@ export class OperatorsController extends BaseController<any> {
     const overview = await this.operatorService.findOperatorById(id);
     return ResponseHelper.ok(
       overview,
-      "Operator overview retrieved successfully"
+      "Operator overview retrieved successfully",
     );
   }
 
@@ -152,7 +152,7 @@ export class OperatorsController extends BaseController<any> {
     const stats = await this.operatorService.getOperatorStats(id);
     return ResponseHelper.ok(
       stats,
-      "Operator statistics retrieved successfully"
+      "Operator statistics retrieved successfully",
     );
   }
 
@@ -178,19 +178,19 @@ export class OperatorsController extends BaseController<any> {
         id,
         query.activity_types,
         query.limit,
-        query.offset
+        query.offset,
       );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       query.limit || 50,
-      query.offset || 0
+      query.offset || 0,
     );
 
     return ResponseHelper.paginated(
       activities,
       paginationMeta,
-      "Activity timeline retrieved successfully"
+      "Activity timeline retrieved successfully",
     );
   }
 
@@ -216,15 +216,15 @@ export class OperatorsController extends BaseController<any> {
   })
   async getStrategies(
     @Param("id") id: string,
-    @Query() filters: ListOperatorStrategiesDto
+    @Query() filters: ListOperatorStrategiesDto,
   ) {
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
-      filters
+      filters,
     );
     return ResponseHelper.ok(
       { strategies },
-      "Operator strategies retrieved successfully"
+      "Operator strategies retrieved successfully",
     );
   }
 
@@ -251,7 +251,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async getStrategyDetail(
     @Param("id") id: string,
-    @Param("strategyId") strategyId: string
+    @Param("strategyId") strategyId: string,
   ) {
     const detail = await this.operatorService.getStrategyDetail(id, strategyId);
     return ResponseHelper.ok(detail, "Strategy detail retrieved successfully");
@@ -275,18 +275,18 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAVSRegistrations(
     @Param("id") id: string,
-    @Query() query: ListOperatorAVSDto
+    @Query() query: ListOperatorAVSDto,
   ) {
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
         query.status,
-        query.sort_by
+        query.sort_by,
       );
 
     return ResponseHelper.ok(
       { avs_relationships: relationships },
-      "AVS registrations retrieved successfully"
+      "AVS registrations retrieved successfully",
     );
   }
 
@@ -311,7 +311,7 @@ export class OperatorsController extends BaseController<any> {
     const detail = await this.operatorService.getOperatorAVSDetail(id, avsId);
     return ResponseHelper.ok(
       detail,
-      "Operator-AVS detail retrieved successfully"
+      "Operator-AVS detail retrieved successfully",
     );
   }
 
@@ -334,15 +334,15 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAVSRegistrationHistory(
     @Param("id") id: string,
-    @Param("avsId") avsId: string
+    @Param("avsId") avsId: string,
   ) {
     const history = await this.operatorService.getAVSRegistrationHistory(
       id,
-      avsId
+      avsId,
     );
     return ResponseHelper.ok(
       { history },
-      "AVS registration history retrieved successfully"
+      "AVS registration history retrieved successfully",
     );
   }
 
@@ -375,7 +375,7 @@ export class OperatorsController extends BaseController<any> {
     const overview = await this.operatorService.getCommissionOverview(id);
     return ResponseHelper.ok(
       overview,
-      "Commission overview retrieved successfully"
+      "Commission overview retrieved successfully",
     );
   }
 
@@ -401,12 +401,12 @@ export class OperatorsController extends BaseController<any> {
   })
   async getCommissionHistory(
     @Param("id") id: string,
-    @Query() query: GetCommissionHistoryDto
+    @Query() query: GetCommissionHistoryDto,
   ) {
     const history = await this.operatorService.getCommissionHistory(id, query);
     return ResponseHelper.ok(
       history,
-      "Commission history retrieved successfully"
+      "Commission history retrieved successfully",
     );
   }
 
@@ -436,7 +436,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async listDelegators(
     @Param("id") id: string,
-    @Query() query: ListDelegatorsDto
+    @Query() query: ListDelegatorsDto,
   ) {
     const paginationParams = this.handlePagination(query);
 
@@ -449,7 +449,7 @@ export class OperatorsController extends BaseController<any> {
       },
       paginationParams,
       query.sort_by,
-      query.sort_order
+      query.sort_order,
     );
 
     // TODO: Investigate this
@@ -457,7 +457,7 @@ export class OperatorsController extends BaseController<any> {
     const paginationMeta = PaginationHelper.buildMeta(
       result.summary.total_delegators,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.ok(
@@ -466,7 +466,55 @@ export class OperatorsController extends BaseController<any> {
         summary: result.summary,
         pagination: paginationMeta,
       },
-      "Delegators retrieved successfully"
+      "Delegators retrieved successfully",
+    );
+  }
+
+  /**
+   * Endpoint 14: Get Delegation History
+   */
+  @Get(":id/delegators/history")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegation history",
+    description: "Historical delegation/undelegation events for the operator",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegation history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getDelegationHistory(
+    @Param("id") id: string,
+    @Query() query: GetDelegationHistoryDto,
+  ) {
+    const paginationParams = this.handlePagination(query);
+
+    const { events, total } = await this.operatorService.getDelegationHistory(
+      id,
+      {
+        event_type: query.event_type,
+        date_from: query.date_from,
+        date_to: query.date_to,
+      },
+      paginationParams,
+    );
+
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      paginationParams.limit,
+      paginationParams.offset,
+    );
+
+    return ResponseHelper.paginated(
+      events,
+      paginationMeta,
+      "Delegation history retrieved successfully",
     );
   }
 
@@ -493,59 +541,11 @@ export class OperatorsController extends BaseController<any> {
   })
   async getDelegatorDetail(
     @Param("id") id: string,
-    @Param("stakerId") stakerId: string
+    @Param("stakerId") stakerId: string,
   ) {
     // TODO: Investigate this endpoint
     const detail = await this.operatorService.getDelegatorDetail(id, stakerId);
     return ResponseHelper.ok(detail, "Delegator detail retrieved successfully");
-  }
-
-  /**
-   * Endpoint 14: Get Delegation History
-   */
-  @Get(":id/delegators/history")
-  @Public()
-  @ApiSecurity("api-key")
-  @ApiOperation({
-    summary: "Get delegation history",
-    description: "Historical delegation/undelegation events for the operator",
-  })
-  @ApiParam({ name: "id", description: "Operator ID" })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Successfully retrieved delegation history",
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: "Operator not found",
-  })
-  async getDelegationHistory(
-    @Param("id") id: string,
-    @Query() query: GetDelegationHistoryDto
-  ) {
-    const paginationParams = this.handlePagination(query);
-
-    const { events, total } = await this.operatorService.getDelegationHistory(
-      id,
-      {
-        event_type: query.event_type,
-        date_from: query.date_from,
-        date_to: query.date_to,
-      },
-      paginationParams
-    );
-
-    const paginationMeta = PaginationHelper.buildMeta(
-      total,
-      paginationParams.limit,
-      paginationParams.offset
-    );
-
-    return ResponseHelper.paginated(
-      events,
-      paginationMeta,
-      "Delegation history retrieved successfully"
-    );
   }
 
   // ============================================================================
@@ -576,7 +576,7 @@ export class OperatorsController extends BaseController<any> {
     const overview = await this.operatorService.getAllocationsOverview(id);
     return ResponseHelper.ok(
       overview,
-      "Allocations overview retrieved successfully"
+      "Allocations overview retrieved successfully",
     );
   }
 
@@ -602,7 +602,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async listDetailedAllocations(
     @Param("id") id: string,
-    @Query() query: ListDetailedAllocationsDto
+    @Query() query: ListDetailedAllocationsDto,
   ) {
     const paginationParams = this.handlePagination(query);
 
@@ -617,19 +617,19 @@ export class OperatorsController extends BaseController<any> {
         },
         paginationParams,
         query.sort_by,
-        query.sort_order
+        query.sort_order,
       );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.paginated(
       allocations,
       paginationMeta,
-      "Detailed allocations retrieved successfully"
+      "Detailed allocations retrieved successfully",
     );
   }
 
@@ -659,15 +659,15 @@ export class OperatorsController extends BaseController<any> {
   })
   async getRiskAssessment(
     @Param("id") id: string,
-    @Query() query: GetRiskAssessmentDto
+    @Query() query: GetRiskAssessmentDto,
   ) {
     const assessment = await this.operatorService.getOperatorRiskProfile(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       assessment,
-      "Risk assessment retrieved successfully"
+      "Risk assessment retrieved successfully",
     );
   }
 
@@ -693,16 +693,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getConcentrationMetrics(
     @Param("id") id: string,
-    @Query() query: GetConcentrationMetricsDto
+    @Query() query: GetConcentrationMetricsDto,
   ) {
     const metrics = await this.operatorService.getConcentrationMetrics(
       id,
       query.concentration_type || "delegation",
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       metrics,
-      "Concentration metrics retrieved successfully"
+      "Concentration metrics retrieved successfully",
     );
   }
 
@@ -728,16 +728,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getVolatilityMetrics(
     @Param("id") id: string,
-    @Query() query: GetVolatilityMetricsDto
+    @Query() query: GetVolatilityMetricsDto,
   ) {
     const metrics = await this.operatorService.getVolatilityMetrics(
       id,
       query.metric_type || "tvs",
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       metrics,
-      "Volatility metrics retrieved successfully"
+      "Volatility metrics retrieved successfully",
     );
   }
 
@@ -767,16 +767,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getDailySnapshots(
     @Param("id") id: string,
-    @Query() query: GetDailySnapshotsDto
+    @Query() query: GetDailySnapshotsDto,
   ) {
     const snapshots = await this.operatorService.getDailySnapshots(
       id,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       snapshots,
-      "Daily snapshots retrieved successfully"
+      "Daily snapshots retrieved successfully",
     );
   }
 
@@ -804,17 +804,17 @@ export class OperatorsController extends BaseController<any> {
   async getStrategyTVSHistory(
     @Param("id") id: string,
     @Param("strategyId") strategyId: string,
-    @Query() query: GetStrategyTVSHistoryDto
+    @Query() query: GetStrategyTVSHistoryDto,
   ) {
     const history = await this.operatorService.getStrategyTVSHistory(
       id,
       strategyId,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       history,
-      "Strategy TVS history retrieved successfully"
+      "Strategy TVS history retrieved successfully",
     );
   }
 
@@ -842,16 +842,16 @@ export class OperatorsController extends BaseController<any> {
   async getDelegatorSharesHistory(
     @Param("id") id: string,
     @Param("stakerId") stakerId: string,
-    @Query() query: GetDelegatorSharesHistoryDto
+    @Query() query: GetDelegatorSharesHistoryDto,
   ) {
     const history = await this.operatorService.getDelegatorSharesHistory(
       id,
       stakerId,
-      query
+      query,
     );
     return ResponseHelper.ok(
       history,
-      "Delegator shares history retrieved successfully"
+      "Delegator shares history retrieved successfully",
     );
   }
 
@@ -879,17 +879,17 @@ export class OperatorsController extends BaseController<any> {
   async getAVSRelationshipTimeline(
     @Param("id") id: string,
     @Param("avsId") avsId: string,
-    @Query() query: GetAVSTimelineDto
+    @Query() query: GetAVSTimelineDto,
   ) {
     const timeline = await this.operatorService.getAVSRelationshipTimeline(
       id,
       avsId,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       timeline,
-      "AVS relationship timeline retrieved successfully"
+      "AVS relationship timeline retrieved successfully",
     );
   }
 
@@ -915,12 +915,12 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAllocationHistory(
     @Param("id") id: string,
-    @Query() query: GetAllocationHistoryDto
+    @Query() query: GetAllocationHistoryDto,
   ) {
     const history = await this.operatorService.getAllocationHistory(id, query);
     return ResponseHelper.ok(
       history,
-      "Allocation history retrieved successfully"
+      "Allocation history retrieved successfully",
     );
   }
 
@@ -948,7 +948,7 @@ export class OperatorsController extends BaseController<any> {
     const incidents = await this.operatorService.getSlashingIncidents(id);
     return ResponseHelper.ok(
       incidents,
-      "Slashing incidents retrieved successfully"
+      "Slashing incidents retrieved successfully",
     );
   }
 
@@ -1002,11 +1002,11 @@ export class OperatorsController extends BaseController<any> {
   })
   async getOperatorRankings(
     @Param("id") id: string,
-    @Query() query: GetRankingsDto
+    @Query() query: GetRankingsDto,
   ) {
     const rankings = await this.operatorService.getOperatorRankings(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(rankings, "Rankings retrieved successfully");
   }
@@ -1032,15 +1032,15 @@ export class OperatorsController extends BaseController<any> {
   }) // REQUIRED because NetworkRepository extends BaseRepository
   async compareOperatorToNetwork(
     @Param("id") id: string,
-    @Query() query: CompareToNetworkDto
+    @Query() query: CompareToNetworkDto,
   ) {
     const comparison = await this.operatorService.compareOperatorToNetwork(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       comparison,
-      "Network comparison retrieved successfully"
+      "Network comparison retrieved successfully",
     );
   }
 }

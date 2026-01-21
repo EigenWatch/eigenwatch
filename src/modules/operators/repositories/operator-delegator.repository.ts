@@ -17,7 +17,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
     },
     pagination: { limit: number; offset: number },
     sortBy: string,
-    sortOrder: "asc" | "desc"
+    sortOrder: "asc" | "desc",
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
@@ -52,68 +52,61 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
         },
       });
 
-      // Filter by shares
-      let filtered: any[] = delegators;
+      // Map and Filter
+      let filtered = delegators
+        .map((d: any) => {
+          const shares = d.stakers.operator_delegator_shares || [];
+          const totalShares = shares.reduce(
+            (sum: number, s: any) => sum + Number(s.shares),
+            0,
+          );
+          const totalTVS = shares.reduce(
+            (sum: number, s: any) => sum + Number(s.tvs_usd || 0),
+            0,
+          );
 
-      if (
-        filters.min_shares !== undefined ||
-        filters.max_shares !== undefined ||
-        sortBy === "shares"
-      ) {
-        filtered = delegators
-          .map((d: any) => {
-            const shares = d.stakers.operator_delegator_shares || [];
-            const totalShares = shares.reduce(
-              (sum: number, s: any) => sum + Number(s.shares),
-              0
-            );
+          return {
+            ...d,
+            shares: totalShares,
+            tvs: totalTVS,
+            strategies: shares.map((s: any) => ({
+              strategy: s.strategies,
+              shares: s.shares,
+              tvs: s.tvs_usd || 0,
+            })),
+          };
+        })
+        .filter((d: any) => {
+          if (filters.min_shares !== undefined && d.shares < filters.min_shares)
+            return false;
+          if (filters.max_shares !== undefined && d.shares > filters.max_shares)
+            return false;
+          return true;
+        });
 
-            return {
-              ...d,
-              shares: totalShares,
-              strategies: shares.map((s: any) => ({
-                strategy: s.strategies,
-                shares: s.shares,
-              })),
-            };
-          })
-          .filter((d: any) => {
-            if (
-              filters.min_shares !== undefined &&
-              d.shares < filters.min_shares
-            )
-              return false;
-            if (
-              filters.max_shares !== undefined &&
-              d.shares > filters.max_shares
-            )
-              return false;
-            return true;
-          });
-
-        // Sort by shares
-        if (sortBy === "shares") {
-          filtered.sort((a: any, b: any) => {
-            return sortOrder === "asc"
-              ? a.totalShares - b.totalShares
-              : b.totalShares - a.totalShares;
-          });
-        }
-      } else {
-        // Sort by other fields
-        if (sortBy === "delegated_at") {
-          filtered.sort((a: any, b: any) => {
-            const dateA = a.delegated_at ? new Date(a.delegated_at).getTime() : 0;
-            const dateB = b.delegated_at ? new Date(b.delegated_at).getTime() : 0;
-            return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
-          });
-        }
+      // Sort
+      if (sortBy === "shares") {
+        filtered.sort((a: any, b: any) => {
+          return sortOrder === "asc"
+            ? a.shares - b.shares
+            : b.shares - a.shares;
+        });
+      } else if (sortBy === "tvs") {
+        filtered.sort((a: any, b: any) => {
+          return sortOrder === "asc" ? a.tvs - b.tvs : b.tvs - a.tvs;
+        });
+      } else if (sortBy === "delegated_at") {
+        filtered.sort((a: any, b: any) => {
+          const dateA = a.delegated_at ? new Date(a.delegated_at).getTime() : 0;
+          const dateB = b.delegated_at ? new Date(b.delegated_at).getTime() : 0;
+          return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+        });
       }
 
       // Pagination
       return filtered.slice(
         pagination.offset,
-        pagination.offset + pagination.limit
+        pagination.offset + pagination.limit,
       );
     });
   }
@@ -138,7 +131,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
 
   async findDelegatorDetail(
     operatorId: string,
-    stakerId: string
+    stakerId: string,
   ): Promise<any> {
     return this.execute(async () => {
       const delegator = await this.prisma.operator_delegators.findFirst({
@@ -167,7 +160,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
       const shares = delegator.stakers.operator_delegator_shares || [];
       const totalShares = shares.reduce(
         (sum: number, s: any) => sum + Number(s.shares),
-        0
+        0,
       );
 
       return {
@@ -188,7 +181,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
       date_from?: Date;
       date_to?: Date;
     },
-    pagination: { limit: number; offset: number }
+    pagination: { limit: number; offset: number },
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
@@ -223,7 +216,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
       event_type?: string;
       date_from?: Date;
       date_to?: Date;
-    }
+    },
   ): Promise<number> {
     return this.execute(async () => {
       const where: any = {
@@ -251,7 +244,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
       strategy_id?: string;
       date_from?: Date;
       date_to?: Date;
-    }
+    },
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
@@ -281,7 +274,7 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
 
   async findDelegatorsByOperatorStrategy(
     operatorId: string,
-    strategyId: string
+    strategyId: string,
   ): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_delegator_shares.findMany({

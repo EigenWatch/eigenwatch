@@ -424,6 +424,7 @@ model operator_delegator_shares {
   shares_updated_block Int?
   created_at           DateTime   @default(now()) @db.Timestamp(6)
   updated_at           DateTime   @default(now()) @db.Timestamp(6)
+  tvs_usd              Decimal?   @db.Decimal
   operators            operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   stakers              stakers    @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   strategies           strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

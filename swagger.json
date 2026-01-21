@@ -793,7 +793,8 @@
               "type": "string",
               "enum": [
                 "shares",
-                "delegation_date"
+                "delegation_date",
+                "tvs"
               ]
             }
           },
@@ -825,49 +826,6 @@
           }
         ],
         "summary": "List operator delegators",
-        "tags": [
-          "Operators"
-        ]
-      }
-    },
-    "/api/v1/operators/{id}/delegators/{stakerId}": {
-      "get": {
-        "description": "Detailed view of a specific delegator's relationship with the operator",
-        "operationId": "OperatorsController_getDelegatorDetail",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Operator ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "stakerId",
-            "required": true,
-            "in": "path",
-            "description": "Staker ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved delegator detail"
-          },
-          "404": {
-            "description": "Operator or delegator not found"
-          }
-        },
-        "security": [
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Get delegator detail",
         "tags": [
           "Operators"
         ]
@@ -961,6 +919,49 @@
           }
         ],
         "summary": "Get delegation history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/{stakerId}": {
+      "get": {
+        "description": "Detailed view of a specific delegator's relationship with the operator",
+        "operationId": "OperatorsController_getDelegatorDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stakerId",
+            "required": true,
+            "in": "path",
+            "description": "Staker ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegator detail"
+          },
+          "404": {
+            "description": "Operator or delegator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegator detail",
         "tags": [
           "Operators"
         ]

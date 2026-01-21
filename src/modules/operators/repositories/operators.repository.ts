@@ -231,6 +231,28 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
     });
   }
 
+  async findByIdWithStats(operatorId: string): Promise<any | null> {
+    return this.execute(async () => {
+      return this.prisma.operators.findUnique({
+        where: { id: operatorId },
+        include: {
+          operator_state: true,
+          operator_metadata: true,
+          operator_analytics: {
+            orderBy: { date: "desc" },
+            take: 1,
+          },
+          operator_strategy_state: {
+            include: {
+              strategies: true,
+            },
+          },
+          operator_delegator_shares: true,
+        },
+      });
+    });
+  }
+
   async findDailySnapshots(
     operatorId: string,
     dateFrom: Date,

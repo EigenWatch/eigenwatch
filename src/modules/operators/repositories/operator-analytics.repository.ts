@@ -33,7 +33,7 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
     operatorId: string,
     activityTypes?: string[],
     limit: number = 10,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<any[]> {
     return this.execute(async () => {
       const [registrations, commissions, delegations, allocations, metadata] =
@@ -42,11 +42,13 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
             where: { operator_id: operatorId },
             take: limit,
             orderBy: { status_changed_at: "desc" },
+            include: { avs: true },
           }),
           this.prisma.operator_commission_history.findMany({
             where: { operator_id: operatorId },
             take: limit,
             orderBy: { changed_at: "desc" },
+            include: { avs: true },
           }),
           this.prisma.operator_delegator_history.findMany({
             where: { operator_id: operatorId },
@@ -117,7 +119,7 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
   async findConcentrationMetrics(
     operatorId: string,
     concentrationType: string,
-    date?: Date
+    date?: Date,
   ): Promise<any> {
     return this.execute(async () => {
       const where: any = {
@@ -139,7 +141,7 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
   async findVolatilityMetrics(
     operatorId: string,
     metricType: string,
-    date?: Date
+    date?: Date,
   ): Promise<any> {
     return this.execute(async () => {
       const where: any = {
@@ -161,7 +163,7 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
   async findDailySnapshots(
     operatorId: string,
     dateFrom?: Date,
-    dateTo?: Date
+    dateTo?: Date,
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
@@ -225,7 +227,7 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
 
   async calculateOperatorPercentiles(
     operatorId: string,
-    date?: Date
+    date?: Date,
   ): Promise<any> {
     return this.execute(async () => {
       const where: any = { operator_id: operatorId };
@@ -291,7 +293,10 @@ export class OperatorAnalyticsRepository extends BaseRepository<any> {
           orderBy: { date: "desc" },
         }),
         this.prisma.concentration_metrics.findFirst({
-          where: { ...whereConcentration, concentration_type: "allocation_by_avs" },
+          where: {
+            ...whereConcentration,
+            concentration_type: "allocation_by_avs",
+          },
           orderBy: { date: "desc" },
         }),
         this.prisma.concentration_metrics.findFirst({

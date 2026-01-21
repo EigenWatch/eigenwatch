@@ -15,6 +15,7 @@ export enum DelegatorStatus {
 export enum DelegatorSortField {
   SHARES = "shares",
   DELEGATION_DATE = "delegation_date",
+  TVS = "tvs",
 }
 
 export class ListDelegatorsDto extends PaginationDto {

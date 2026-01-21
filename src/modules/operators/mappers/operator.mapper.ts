@@ -394,15 +394,18 @@ export class OperatorMapper {
       description: "",
     };
 
-    console.log({ activity });
-
     switch (activity.type) {
       case "registration":
+        const avsName = activity.data.avs
+          ? this.getAVSName(activity.data.avs.address)
+          : "Unknown AVS";
         return {
           ...baseActivity,
-          description: "Operator registered",
+          description: `Registered with ${avsName}`,
           details: {
             delegation_approver: activity.data.delegation_approver,
+            avs_address: activity.data.avs?.address,
+            avs_name: avsName,
           },
         };
 
@@ -431,15 +434,19 @@ export class OperatorMapper {
         };
 
       case "commission":
+        const commAvsName = activity.data.avs
+          ? this.getAVSName(activity.data.avs.address)
+          : "Unknown AVS";
         return {
           ...baseActivity,
-          description: `Commission rate changed from ${activity.data.old_bips} to ${activity.data.new_bips} bips`,
+          description: `Commission rate to ${commAvsName} changed from ${activity.data.old_bips} to ${activity.data.new_bips} bips`,
           details: {
             commission_type: activity.data.commission_type,
             old_bips: activity.data.old_bips,
             new_bips: activity.data.new_bips,
             change_delta: activity.data.change_delta,
             avs_address: activity.data.avs?.address,
+            avs_name: commAvsName,
             activated_at: activity.data.activated_at.toISOString(),
           },
         };
@@ -702,13 +709,37 @@ export class OperatorMapper {
   // DELEGATOR MAPPERS (Endpoints 12-14)
   // ============================================================================
 
-  mapToDelegatorListItem(delegator: any, totalShares: string): any {
-    // Calculate shares percentage (would need total operator shares)
-    const strategies = (delegator.operator_delegator_shares || []).map(
-      (share: any) => ({
-        strategy_id: share.strategy_id,
-        strategy_name: this.getStrategyName(share.strategies?.address),
-        shares: share.shares.toString(),
+  async mapToDelegatorListItem(
+    delegator: any,
+    totalShares: string,
+    totalTVS: number = 0,
+  ): Promise<any> {
+    // Collect all strategy addresses to preload metadata if possible
+    const strategiesData =
+      delegator.stakers?.operator_delegator_shares ||
+      delegator.strategies ||
+      [];
+    const strategyAddresses = strategiesData
+      .map((s: any) => s.strategies?.address)
+      .filter(Boolean);
+
+    // Ideally we would preload here, but let's just use the async getters for each
+    // This might be slightly slower but correct. Batching should happen at service level if needed.
+
+    const strategies = await Promise.all(
+      strategiesData.map(async (share: any) => {
+        const address = share.strategies?.address || "";
+        const metadata =
+          await this.tokenMetadataService.getStrategyMetadata(address);
+
+        return {
+          strategy_id: share.strategy_id,
+          strategy_name: metadata?.name || this.getStrategyName(address),
+          strategy_symbol: metadata?.symbol || "UNKNOWN",
+          strategy_logo: metadata?.logo_url || "",
+          shares: share.shares.toString(),
+          tvs: share.tvs?.toString() || (share.tvs_usd?.toString() ?? "0"),
+        };
       }),
     );
 
@@ -719,6 +750,7 @@ export class OperatorMapper {
       delegated_at: delegator.delegated_at?.toISOString() || null,
       undelegated_at: delegator.undelegated_at?.toISOString() || null,
       total_shares: totalShares,
+      total_tvs: totalTVS.toString(),
       shares_percentage: "0", // Would need to calculate against total operator shares
       strategies,
     };
