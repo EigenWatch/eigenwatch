@@ -1,13 +1,19 @@
 import { ApiProperty } from "@nestjs/swagger";
 
 export class PICommissionDto {
-  @ApiProperty({ example: 1000, description: "Current commission in basis points" })
+  @ApiProperty({
+    example: 1000,
+    description: "Current commission in basis points",
+  })
   current_bips: number;
 
   @ApiProperty({ example: "2024-01-01T00:00:00Z" })
   activated_at: string;
 
-  @ApiProperty({ example: 5, description: "Total number of times commission has changed" })
+  @ApiProperty({
+    example: 5,
+    description: "Total number of times commission has changed",
+  })
   total_changes: number;
 }
 
@@ -29,6 +35,19 @@ export class AVSCommissionDto {
 
   @ApiProperty({ example: "2024-02-01T00:00:00Z", nullable: true })
   upcoming_activated_at: string | null;
+
+  @ApiProperty({
+    example: 3,
+    description: "Total number of times this AVS commission has changed",
+  })
+  total_changes: number;
+
+  @ApiProperty({
+    example: "2024-01-01T00:00:00Z",
+    nullable: true,
+    description: "When this commission was first set",
+  })
+  first_set_at: string | null;
 }
 
 export class OperatorSetCommissionDto {
@@ -49,36 +68,91 @@ export class OperatorSetCommissionDto {
 }
 
 export class CommissionBehaviorProfileDto {
-  @ApiProperty({ example: 450, description: "Days since the last commission change. High = Stable." })
+  @ApiProperty({
+    example: 450,
+    description: "Days since the last commission change. High = Stable.",
+  })
   days_since_last_change: number;
 
-  @ApiProperty({ example: 2, description: "Number of rate changes in the last 1 year" })
+  @ApiProperty({
+    example: 2,
+    description: "Number of rate changes in the last 1 year",
+  })
   changes_last_12m: number;
 
-  @ApiProperty({ example: 1000, description: "The highest commission rate ever observed for this operator" })
+  @ApiProperty({
+    example: 1000,
+    description: "The highest commission rate ever observed for this operator",
+  })
   max_historical_bips: number;
 
-  @ApiProperty({ example: false, description: "True if there is a pending commission change" })
+  @ApiProperty({
+    example: false,
+    description: "True if there is a pending commission change",
+  })
   is_change_pending: boolean;
+}
+
+export class NetworkBenchmarksDto {
+  @ApiProperty({
+    example: 1200,
+    description: "Mean PI commission across all operators (bips)",
+  })
+  mean_pi_commission_bips: number;
+
+  @ApiProperty({
+    example: 1000,
+    description: "Median PI commission across all operators (bips)",
+  })
+  median_pi_commission_bips: number;
+
+  @ApiProperty({
+    example: 500,
+    description: "25th percentile PI commission (bips)",
+  })
+  p25_pi_commission_bips: number;
+
+  @ApiProperty({
+    example: 1500,
+    description: "75th percentile PI commission (bips)",
+  })
+  p75_pi_commission_bips: number;
+
+  @ApiProperty({
+    example: 2000,
+    description: "90th percentile PI commission (bips)",
+  })
+  p90_pi_commission_bips: number;
 }
 
 export class CommissionOverviewResponseDto {
   @ApiProperty({ description: "Programmatic Incentive commission details" })
   pi_commission: PICommissionDto | null;
 
-  @ApiProperty({ type: [AVSCommissionDto], description: "List of AVS-specific commissions" })
+  @ApiProperty({
+    type: [AVSCommissionDto],
+    description: "List of AVS-specific commissions",
+  })
   avs_commissions: AVSCommissionDto[];
 
-  @ApiProperty({ type: [OperatorSetCommissionDto], description: "List of Operator Set commissions" })
+  @ApiProperty({
+    type: [OperatorSetCommissionDto],
+    description: "List of Operator Set commissions",
+  })
   operator_set_commissions: OperatorSetCommissionDto[];
 
   @ApiProperty({ description: "High-level insights for risk dashboards" })
   behavior_profile: CommissionBehaviorProfileDto;
+
+  @ApiProperty({
+    description: "Network-wide benchmark statistics for PI commissions",
+  })
+  network_benchmarks: NetworkBenchmarksDto;
 }
 
 export class CommissionHistoryItemDto {
-  @ApiProperty({ enum: ['pi', 'avs', 'operator_set'] })
-  commission_type: 'pi' | 'avs' | 'operator_set';
+  @ApiProperty({ enum: ["pi", "avs", "operator_set"] })
+  commission_type: "pi" | "avs" | "operator_set";
 
   @ApiProperty({ nullable: true })
   avs_id: string | null;

@@ -54,16 +54,21 @@ export interface OperatorOverview {
 }
 
 export interface StrategyBreakdown {
-  strategy_id: string;
   strategy_address: string;
-  strategy_name: string;
-  max_magnitude: string;
-  encumbered_magnitude: string;
-  utilization_rate: string;
+  token: {
+    name: string;
+    symbol: string;
+    logo_url: string | null;
+    decimals: number;
+  };
+  tvs_usd: number;
+  tvs_percentage: number;
+  utilization_rate: number;
+  delegator_count: number;
 }
 
 export interface TVSStats {
-  total: string;
+  total: number;
   by_strategy: StrategyBreakdown[];
 }
 

@@ -91,7 +91,7 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    return this.operatorMapper.mapToStatistics(operator);
+    return await this.operatorMapper.mapToStatistics(operator);
   }
 
   async findOperatorStrategies(

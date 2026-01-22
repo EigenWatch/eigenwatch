@@ -2716,6 +2716,17 @@
             "type": "string",
             "example": "2024-02-01T00:00:00Z",
             "nullable": true
+          },
+          "total_changes": {
+            "type": "number",
+            "example": 3,
+            "description": "Total number of times this AVS commission has changed"
+          },
+          "first_set_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z",
+            "nullable": true,
+            "description": "When this commission was first set"
           }
         },
         "required": [
@@ -2724,7 +2735,9 @@
           "current_bips",
           "activated_at",
           "upcoming_bips",
-          "upcoming_activated_at"
+          "upcoming_activated_at",
+          "total_changes",
+          "first_set_at"
         ]
       },
       "OperatorSetCommissionDto": {
@@ -2790,6 +2803,43 @@
           "is_change_pending"
         ]
       },
+      "NetworkBenchmarksDto": {
+        "type": "object",
+        "properties": {
+          "mean_pi_commission_bips": {
+            "type": "number",
+            "example": 1200,
+            "description": "Mean PI commission across all operators (bips)"
+          },
+          "median_pi_commission_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "Median PI commission across all operators (bips)"
+          },
+          "p25_pi_commission_bips": {
+            "type": "number",
+            "example": 500,
+            "description": "25th percentile PI commission (bips)"
+          },
+          "p75_pi_commission_bips": {
+            "type": "number",
+            "example": 1500,
+            "description": "75th percentile PI commission (bips)"
+          },
+          "p90_pi_commission_bips": {
+            "type": "number",
+            "example": 2000,
+            "description": "90th percentile PI commission (bips)"
+          }
+        },
+        "required": [
+          "mean_pi_commission_bips",
+          "median_pi_commission_bips",
+          "p25_pi_commission_bips",
+          "p75_pi_commission_bips",
+          "p90_pi_commission_bips"
+        ]
+      },
       "CommissionOverviewResponseDto": {
         "type": "object",
         "properties": {
@@ -2822,13 +2872,22 @@
                 "$ref": "#/components/schemas/CommissionBehaviorProfileDto"
               }
             ]
+          },
+          "network_benchmarks": {
+            "description": "Network-wide benchmark statistics for PI commissions",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NetworkBenchmarksDto"
+              }
+            ]
           }
         },
         "required": [
           "pi_commission",
           "avs_commissions",
           "operator_set_commissions",
-          "behavior_profile"
+          "behavior_profile",
+          "network_benchmarks"
         ]
       },
       "CommissionHistoryItemDto": {

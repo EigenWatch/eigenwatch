@@ -10,7 +10,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
   async findOperatorAVSRelationships(
     operatorId: string,
-    status?: string
+    status?: string,
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
@@ -32,7 +32,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
   async findOperatorAVSRelationship(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<any | null> {
     return this.execute(async () => {
       return this.prisma.operator_avs_relationships.findFirst({
@@ -49,7 +49,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
   async findOperatorSetsForAVS(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<any[]> {
     return this.execute(async () => {
       // Get all operator sets for this AVS
@@ -77,7 +77,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
             latest_allocation: allocations[0] || null,
             allocations: allocations, // Mapper might expect 'allocations' array
           };
-        })
+        }),
       );
 
       return setsWithAllocations;
@@ -86,18 +86,19 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
   async findCommissionsForAVS(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<any[]> {
     return this.execute(async () => {
-      const commissions = await this.prisma.operator_commission_history.findMany({
-        where: {
-          operator_id: operatorId,
-          avs_id: avsId,
-        },
-        orderBy: {
-          changed_at: "desc",
-        },
-      });
+      const commissions =
+        await this.prisma.operator_commission_history.findMany({
+          where: {
+            operator_id: operatorId,
+            avs_id: avsId,
+          },
+          orderBy: {
+            changed_at: "desc",
+          },
+        });
 
       return commissions;
     });
@@ -105,7 +106,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
   async findAVSRegistrationHistory(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_avs_registration_history.findMany({
@@ -124,14 +125,14 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     operatorId: string,
     avsId: string,
     dateFrom?: Date,
-    dateTo?: Date
+    dateTo?: Date,
   ): Promise<any[]> {
     return this.execute(async () => {
       const whereReg: any = {
         operator_id: operatorId,
         avs_id: avsId,
       };
-      
+
       const whereComm: any = {
         operator_id: operatorId,
         avs_id: avsId,
@@ -139,12 +140,15 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
       if (dateFrom || dateTo) {
         if (dateFrom) {
-            whereReg.status_changed_at = { gte: dateFrom };
-            whereComm.changed_at = { gte: dateFrom };
+          whereReg.status_changed_at = { gte: dateFrom };
+          whereComm.changed_at = { gte: dateFrom };
         }
         if (dateTo) {
-            whereReg.status_changed_at = { ...whereReg.status_changed_at, lte: dateTo };
-            whereComm.changed_at = { ...whereComm.changed_at, lte: dateTo };
+          whereReg.status_changed_at = {
+            ...whereReg.status_changed_at,
+            lte: dateTo,
+          };
+          whereComm.changed_at = { ...whereComm.changed_at, lte: dateTo };
         }
       }
 
@@ -174,7 +178,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       ];
 
       return timeline.sort(
-        (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+        (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
       );
     });
   }
@@ -184,56 +188,90 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-      const [rates, historyStats, lastChange] = await Promise.all([
-        // 1. Get current rates
-        this.prisma.operator_commission_rates.findMany({
-          where: { operator_id: operatorId },
-          include: {
-            avs: true,
-            operator_sets: {
-              include: {
-                avs: true,
+      const [rates, historyStats, lastChange, networkStats] = await Promise.all(
+        [
+          // 1. Get current rates
+          this.prisma.operator_commission_rates.findMany({
+            where: { operator_id: operatorId },
+            include: {
+              avs: true,
+              operator_sets: {
+                include: {
+                  avs: true,
+                },
               },
             },
-          },
-        }),
+          }),
 
-        // 2. Get aggregate stats (max bips, count last 12m)
-        this.prisma.operator_commission_history.aggregate({
-          where: {
-            operator_id: operatorId,
-          },
-          _max: {
-            new_bips: true,
-          },
-          _count: {
-            _all: true,
-          },
-        }),
+          // 2. Get aggregate stats (max bips, count last 12m)
+          this.prisma.operator_commission_history.aggregate({
+            where: {
+              operator_id: operatorId,
+            },
+            _max: {
+              new_bips: true,
+            },
+            _count: {
+              _all: true,
+            },
+          }),
 
-        // 3. Get last change date separately (aggregate doesn't support conditional count easily in one go without raw query)
-        this.prisma.operator_commission_history.findFirst({
+          // 3. Get last change date separately (aggregate doesn't support conditional count easily in one go without raw query)
+          this.prisma.operator_commission_history.findFirst({
             where: { operator_id: operatorId },
-            orderBy: { changed_at: 'desc' },
-            select: { changed_at: true }
-        }),
-      ]);
+            orderBy: { changed_at: "desc" },
+            select: { changed_at: true },
+          }),
+
+          // 4. Get network-wide PI commission benchmarks from latest aggregates
+          this.prisma.network_daily_aggregates.findFirst({
+            orderBy: { snapshot_date: "desc" },
+            select: {
+              mean_pi_commission_bips: true,
+              median_pi_commission_bips: true,
+              p25_pi_commission_bips: true,
+              p75_pi_commission_bips: true,
+              p90_pi_commission_bips: true,
+            },
+          }),
+        ],
+      );
 
       // Get count of changes in last 12 months
-      const changesLast12m = await this.prisma.operator_commission_history.count({
-        where: {
+      const changesLast12m =
+        await this.prisma.operator_commission_history.count({
+          where: {
             operator_id: operatorId,
-            changed_at: { gte: oneYearAgo }
-        }
-      });
+            changed_at: { gte: oneYearAgo },
+          },
+        });
 
       return {
         rates,
         stats: {
-            max_historical_bips: historyStats._max.new_bips || 0,
-            changes_last_12m: changesLast12m,
-            last_change_date: lastChange?.changed_at || null
-        }
+          max_historical_bips: historyStats._max.new_bips || 0,
+          changes_last_12m: changesLast12m,
+          last_change_date: lastChange?.changed_at || null,
+        },
+        network_benchmarks: networkStats
+          ? {
+              mean_pi_commission_bips: networkStats.mean_pi_commission_bips
+                ? Number(networkStats.mean_pi_commission_bips)
+                : 0,
+              median_pi_commission_bips: networkStats.median_pi_commission_bips
+                ? Number(networkStats.median_pi_commission_bips)
+                : 0,
+              p25_pi_commission_bips: networkStats.p25_pi_commission_bips
+                ? Number(networkStats.p25_pi_commission_bips)
+                : 0,
+              p75_pi_commission_bips: networkStats.p75_pi_commission_bips
+                ? Number(networkStats.p75_pi_commission_bips)
+                : 0,
+              p90_pi_commission_bips: networkStats.p90_pi_commission_bips
+                ? Number(networkStats.p90_pi_commission_bips)
+                : 0,
+            }
+          : null,
       };
     });
   }
@@ -245,7 +283,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       avs_id?: string;
       date_from?: Date;
       date_to?: Date;
-    }
+    },
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = { operator_id: operatorId };
