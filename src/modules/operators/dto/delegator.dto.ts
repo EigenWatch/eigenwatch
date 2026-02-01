@@ -48,18 +48,20 @@ export class ListDelegatorsDto extends PaginationDto {
   @ApiPropertyOptional({
     description: "Sort by field",
     enum: DelegatorSortField,
+    default: DelegatorSortField.TVS,
   })
   @IsOptional()
   @IsEnum(DelegatorSortField)
-  sort_by?: DelegatorSortField;
+  sort_by?: DelegatorSortField = DelegatorSortField.TVS;
 
   @ApiPropertyOptional({
     description: "Sort order",
     enum: ["asc", "desc"],
+    default: "desc",
   })
   @IsOptional()
   @IsEnum(["asc", "desc"])
-  sort_order?: "asc" | "desc";
+  sort_order?: "asc" | "desc" = "desc";
 }
 
 export enum DelegationEventType {

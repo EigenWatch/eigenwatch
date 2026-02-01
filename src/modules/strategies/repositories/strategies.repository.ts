@@ -58,10 +58,10 @@ export class StrategiesRepository extends BaseRepository<any> {
         exchangeRates.map((r) => [r.strategy_address.toLowerCase(), r]),
       );
 
-      // Get token metadata for underlying tokens
+      // Get token metadata for underlying tokens (normalize to lowercase)
       const underlyingTokens = exchangeRates
         .filter((r) => r.underlying_token)
-        .map((r) => r.underlying_token!);
+        .map((r) => r.underlying_token!.toLowerCase());
 
       const tokenMetadata = await this.prisma.token_metadata.findMany({
         where: { contract_address: { in: underlyingTokens } },
@@ -187,11 +187,11 @@ export class StrategiesRepository extends BaseRepository<any> {
         },
       );
 
-      // Get token metadata
+      // Get token metadata (normalize to lowercase for case-insensitive match)
       let tokenMetadata = null;
       if (exchangeRate?.underlying_token) {
         tokenMetadata = await this.prisma.token_metadata.findUnique({
-          where: { contract_address: exchangeRate.underlying_token },
+          where: { contract_address: exchangeRate.underlying_token.toLowerCase() },
         });
       }
 

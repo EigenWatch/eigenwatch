@@ -24,6 +24,7 @@ model avs {
   operator_commission_history         operator_commission_history[]
   operator_commission_rates           operator_commission_rates[]
   operator_commission_rates_snapshots operator_commission_rates_snapshots[]
+  operator_set_state                  operator_set_state[]
   operator_sets                       operator_sets[]
 }
 
@@ -54,59 +55,87 @@ model concentration_metrics {
 }
 
 model network_daily_aggregates {
-  id                             Int      @id @default(autoincrement())
-  snapshot_date                  DateTime @unique(map: "ix_network_daily_aggregates_snapshot_date") @db.Date
-  snapshot_block                 Int
-  total_operators                Int?
-  active_operators               Int?
-  total_tvs                      Decimal? @db.Decimal
-  mean_tvs                       Decimal? @db.Decimal
-  median_tvs                     Decimal? @db.Decimal
-  p25_tvs                        Decimal? @db.Decimal
-  p75_tvs                        Decimal? @db.Decimal
-  p90_tvs                        Decimal? @db.Decimal
-  total_delegators               Int?
-  mean_delegators_per_operator   Decimal? @db.Decimal
-  median_delegators_per_operator Decimal? @db.Decimal
-  mean_avs_per_operator          Decimal? @db.Decimal
-  median_avs_per_operator        Decimal? @db.Decimal
-  mean_pi_commission_bips        Decimal? @db.Decimal
-  median_pi_commission_bips      Decimal? @db.Decimal
-  new_operators_24h              Int?
-  total_strategies               Int?
-  mean_strategies_per_operator   Decimal? @db.Decimal
-  median_strategies_per_operator Decimal? @db.Decimal
-  new_delegators_24h             Int?
-  total_shares                   Decimal? @db.Decimal
-  mean_shares_per_delegator      Decimal? @db.Decimal
-  median_shares_per_delegator    Decimal? @db.Decimal
-  total_avs                      Int?
-  active_avs                     Int?
-  p25_pi_commission_bips         Decimal? @db.Decimal
-  p75_pi_commission_bips         Decimal? @db.Decimal
-  p90_pi_commission_bips         Decimal? @db.Decimal
-  total_slashing_incidents       Int?
-  slashing_incidents_24h         Int?
-  operators_slashed_count        Int?
-  mean_risk_score                Decimal? @db.Decimal
-  median_risk_score              Decimal? @db.Decimal
-  operators_high_risk_count      Int?
-  operators_low_risk_count       Int?
+  id                                      Int      @id @default(autoincrement())
+  snapshot_date                           DateTime @unique(map: "ix_network_daily_aggregates_snapshot_date") @db.Date
+  snapshot_block                          Int
+  total_operators                         Int?
+  active_operators                        Int?
+  total_tvs                               Decimal? @db.Decimal
+  mean_tvs                                Decimal? @db.Decimal
+  median_tvs                              Decimal? @db.Decimal
+  p25_tvs                                 Decimal? @db.Decimal
+  p75_tvs                                 Decimal? @db.Decimal
+  p90_tvs                                 Decimal? @db.Decimal
+  total_delegators                        Int?
+  mean_delegators_per_operator            Decimal? @db.Decimal
+  median_delegators_per_operator          Decimal? @db.Decimal
+  mean_avs_per_operator                   Decimal? @db.Decimal
+  median_avs_per_operator                 Decimal? @db.Decimal
+  mean_pi_commission_bips                 Decimal? @db.Decimal
+  median_pi_commission_bips               Decimal? @db.Decimal
+  new_operators_24h                       Int?
+  total_strategies                        Int?
+  mean_strategies_per_operator            Decimal? @db.Decimal
+  median_strategies_per_operator          Decimal? @db.Decimal
+  new_delegators_24h                      Int?
+  total_shares                            Decimal? @db.Decimal
+  mean_shares_per_delegator               Decimal? @db.Decimal
+  median_shares_per_delegator             Decimal? @db.Decimal
+  total_avs                               Int?
+  active_avs                              Int?
+  p25_pi_commission_bips                  Decimal? @db.Decimal
+  p75_pi_commission_bips                  Decimal? @db.Decimal
+  p90_pi_commission_bips                  Decimal? @db.Decimal
+  total_slashing_incidents                Int?
+  slashing_incidents_24h                  Int?
+  operators_slashed_count                 Int?
+  mean_risk_score                         Decimal? @db.Decimal
+  median_risk_score                       Decimal? @db.Decimal
+  operators_high_risk_count               Int?
+  operators_low_risk_count                Int?
+  total_allocation_usd                    Decimal? @db.Decimal
+  mean_allocation_usd                     Decimal? @db.Decimal
+  median_allocation_usd                   Decimal? @db.Decimal
+  p25_allocation_usd                      Decimal? @db.Decimal
+  p75_allocation_usd                      Decimal? @db.Decimal
+  p90_allocation_usd                      Decimal? @db.Decimal
+  total_active_allocations                Int?
+  mean_allocations_per_operator           Decimal? @db.Decimal
+  median_allocations_per_operator         Decimal? @db.Decimal
+  mean_allocation_concentration_hhi       Decimal? @db.Decimal
+  mean_avs_commission_bips                Decimal? @db.Decimal
+  median_avs_commission_bips              Decimal? @db.Decimal
+  p25_avs_commission_bips                 Decimal? @db.Decimal
+  p75_avs_commission_bips                 Decimal? @db.Decimal
+  p90_avs_commission_bips                 Decimal? @db.Decimal
+  mean_operator_set_commission_bips       Decimal? @db.Decimal
+  median_operator_set_commission_bips     Decimal? @db.Decimal
+  p25_operator_set_commission_bips        Decimal? @db.Decimal
+  p75_operator_set_commission_bips        Decimal? @db.Decimal
+  p90_operator_set_commission_bips        Decimal? @db.Decimal
+  operators_with_pi_split_count           Int?
+  operators_with_avs_split_count          Int?
+  operators_with_operator_set_split_count Int?
+  operators_using_default_split_count     Int?
 
   @@index([snapshot_date], map: "idx_network_agg_date")
 }
 
 model operator_allocation_snapshots {
-  id              Int           @id @default(autoincrement())
-  operator_id     String        @db.VarChar
-  operator_set_id String        @db.VarChar
-  strategy_id     String        @db.VarChar
-  snapshot_date   DateTime      @db.Date
-  snapshot_block  Int
-  magnitude       Decimal       @db.Decimal
-  operators       operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  operator_sets   operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  strategies      strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                         Int           @id @default(autoincrement())
+  operator_id                String        @db.VarChar
+  operator_set_id            String        @db.VarChar
+  strategy_id                String        @db.VarChar
+  snapshot_date              DateTime      @db.Date
+  snapshot_block             Int
+  magnitude                  Decimal       @db.Decimal
+  magnitude_usd              Decimal?      @db.Decimal
+  allocation_percent         Decimal?      @db.Decimal
+  applicable_commission_bips Int?
+  commission_source          String?       @db.VarChar
+  operators                  operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets              operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                 strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([operator_id, operator_set_id, strategy_id, snapshot_date], map: "operator_allocation_snapshots_unique")
   @@index([operator_id, snapshot_date], map: "idx_allocation_snap_operator_date")
@@ -119,19 +148,23 @@ model operator_allocation_snapshots {
 }
 
 model operator_allocations {
-  id                 String        @id @db.VarChar
-  operator_id        String        @db.VarChar
-  operator_set_id    String        @db.VarChar
-  strategy_id        String        @db.VarChar
-  magnitude          Decimal       @db.Decimal
-  effect_block       Int
-  allocated_at       DateTime      @db.Timestamp(6)
-  allocated_at_block Int
-  created_at         DateTime      @default(now()) @db.Timestamp(6)
-  updated_at         DateTime      @default(now()) @db.Timestamp(6)
-  operators          operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  operator_sets      operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  strategies         strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                         String        @id @db.VarChar
+  operator_id                String        @db.VarChar
+  operator_set_id            String        @db.VarChar
+  strategy_id                String        @db.VarChar
+  magnitude                  Decimal       @db.Decimal
+  effect_block               Int
+  allocated_at               DateTime      @db.Timestamp(6)
+  allocated_at_block         Int
+  created_at                 DateTime      @default(now()) @db.Timestamp(6)
+  updated_at                 DateTime      @default(now()) @db.Timestamp(6)
+  magnitude_usd              Decimal?      @db.Decimal
+  allocation_percent         Decimal?      @db.Decimal
+  applicable_commission_bips Int?
+  commission_source          String?       @db.VarChar
+  operators                  operators     @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets              operator_sets @relation(fields: [operator_set_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                 strategies    @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([effect_block], map: "idx_allocation_effect")
   @@index([operator_id], map: "idx_allocation_operator")
@@ -180,18 +213,20 @@ model operator_analytics {
 }
 
 model operator_avs_allocation_summary {
-  id                        String     @id @db.VarChar
-  operator_id               String     @db.VarChar
-  avs_id                    String     @db.VarChar
-  strategy_id               String     @db.VarChar
-  total_allocated_magnitude Decimal?   @db.Decimal
-  active_allocation_count   Int?
-  last_allocated_at         DateTime?  @db.Timestamp(6)
-  created_at                DateTime   @default(now()) @db.Timestamp(6)
-  updated_at                DateTime   @default(now()) @db.Timestamp(6)
-  avs                       avs        @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  operators                 operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  strategies                strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                            String     @id @db.VarChar
+  operator_id                   String     @db.VarChar
+  avs_id                        String     @db.VarChar
+  strategy_id                   String     @db.VarChar
+  total_allocated_magnitude     Decimal?   @db.Decimal
+  active_allocation_count       Int?
+  last_allocated_at             DateTime?  @db.Timestamp(6)
+  created_at                    DateTime   @default(now()) @db.Timestamp(6)
+  updated_at                    DateTime   @default(now()) @db.Timestamp(6)
+  total_allocated_magnitude_usd Decimal?   @db.Decimal
+  total_allocation_percent      Decimal?   @db.Decimal
+  avs                           avs        @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operators                     operators  @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies                    strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([avs_id], map: "idx_avs_alloc_summary_avs")
   @@index([total_allocated_magnitude], map: "idx_avs_alloc_summary_magnitude")
@@ -215,10 +250,10 @@ model operator_avs_registration_history {
   avs                  avs       @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   operators            operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([operator_id, avs_id, status, status_changed_block, transaction_hash], map: "uq_avs_reg_history_event")
   @@index([avs_id, status_changed_at], map: "idx_avs_reg_hist_avs")
   @@index([operator_id, status_changed_at], map: "idx_avs_reg_hist_operator")
   @@index([operator_id, avs_id], map: "idx_avs_reg_hist_period")
-  @@index([status], map: "idx_avs_reg_hist_status")
   @@index([avs_id], map: "ix_operator_avs_registration_history_avs_id")
   @@index([operator_id], map: "ix_operator_avs_registration_history_operator_id")
   @@index([status_changed_at], map: "ix_operator_avs_registration_history_status_changed_at")
@@ -321,6 +356,9 @@ model operator_commission_rates {
   first_set_at          DateTime?      @db.Timestamp(6)
   created_at            DateTime       @default(now()) @db.Timestamp(6)
   updated_at            DateTime       @default(now()) @db.Timestamp(6)
+  effective_bips        Int?
+  is_scheduled          Boolean?
+  is_default_fallback   Boolean?
   avs                   avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
   operators             operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   operator_sets         operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
@@ -330,20 +368,22 @@ model operator_commission_rates {
   @@index([operator_id], map: "idx_commission_operator")
   @@index([commission_type], map: "idx_commission_type")
   @@index([operator_id], map: "ix_operator_commission_rates_operator_id")
+  @@index([effective_bips], map: "idx_commission_effective")
 }
 
 model operator_commission_rates_snapshots {
-  id              Int            @id @default(autoincrement())
-  operator_id     String         @db.VarChar
-  commission_type String         @db.VarChar
-  avs_id          String?        @db.VarChar
-  operator_set_id String?        @db.VarChar
-  snapshot_date   DateTime       @db.Date
-  snapshot_block  Int
-  current_bips    Int
-  avs             avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
-  operators       operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  operator_sets   operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
+  id                  Int            @id @default(autoincrement())
+  operator_id         String         @db.VarChar
+  commission_type     String         @db.VarChar
+  avs_id              String?        @db.VarChar
+  operator_set_id     String?        @db.VarChar
+  snapshot_date       DateTime       @db.Date
+  snapshot_block      Int
+  current_bips        Int
+  is_default_fallback Boolean?
+  avs                 avs?           @relation(fields: [avs_id], references: [id], onUpdate: NoAction)
+  operators           operators      @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  operator_sets       operator_sets? @relation(fields: [operator_set_id], references: [id], onUpdate: NoAction)
 
   @@unique([operator_id, commission_type, snapshot_date], map: "operator_commission_rates_snapshots_unique")
   @@index([avs_id, snapshot_date], map: "idx_commission_snap_avs")
@@ -367,6 +407,7 @@ model operator_daily_snapshots {
   operational_days          Int?
   is_active                 Boolean?
   total_tvs                 Decimal?  @db.Decimal
+  pi_uses_default_split     Boolean?
   operators                 operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([operator_id, snapshot_date], map: "operator_daily_snapshots_operator_date_key")
@@ -388,6 +429,7 @@ model operator_delegation_approver_history {
   updated_at              DateTime  @default(now()) @db.Timestamp(6)
   operators               operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([operator_id, new_delegation_approver, changed_at_block, transaction_hash], map: "uq_delegation_approver_history_event")
   @@index([operator_id, changed_at], map: "idx_delegation_approver_hist_operator")
   @@index([changed_at], map: "ix_operator_delegation_approver_history_changed_at")
   @@index([operator_id], map: "ix_operator_delegation_approver_history_operator_id")
@@ -406,6 +448,7 @@ model operator_delegator_history {
   operators        operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   stakers          stakers   @relation(fields: [staker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([operator_id, staker_id, delegation_type, event_block, transaction_hash], map: "uq_delegator_history_event")
   @@index([operator_id, event_timestamp], map: "idx_delegator_hist_operator")
   @@index([staker_id, event_timestamp], map: "idx_delegator_hist_staker")
   @@index([delegation_type], map: "idx_delegator_hist_type")
@@ -507,6 +550,7 @@ model operator_metadata_history {
   created_at          DateTime  @default(now()) @db.Timestamp(6)
   operators           operators @relation(fields: [operator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([operator_id, metadata_uri, updated_at_block, transaction_hash], map: "uq_metadata_history_event")
   @@index([updated_at_block], map: "idx_metadata_history_block")
   @@index([operator_id, updated_at], map: "idx_metadata_history_operator")
   @@index([operator_id], map: "ix_operator_metadata_history_operator_id")
@@ -888,32 +932,36 @@ model strategy_exchange_rates {
 }
 
 model token_metadata {
-  contract_address      String                @id @db.VarChar
-  coingecko_id          String?               @unique(map: "ix_token_metadata_coingecko_id") @db.VarChar
-  symbol                String                @db.VarChar
-  name                  String                @db.VarChar
-  asset_platform_id     String?               @db.VarChar
-  description           String?               @db.VarChar
-  categories            String[]              @db.VarChar
-  homepage_url          String?               @db.VarChar
-  twitter_url           String?               @db.VarChar
-  discord_url           String?               @db.VarChar
-  github_urls           String[]              @db.VarChar
-  logo_large            String?               @db.VarChar
-  logo_small            String?               @db.VarChar
-  decimals              Int?
-  last_synced_at        DateTime?             @db.Timestamp(6)
-  first_seen_at         DateTime?             @db.Timestamp(6)
-  price_available_from  DateTime?             @db.Date
-  price_available_to    DateTime?             @db.Date
-  backfill_status       String?               @db.VarChar
-  backfill_attempted_at DateTime?             @db.Timestamp(6)
-  backfill_error        String?               @db.VarChar
-  is_rebasing           Boolean?
-  wrapped_equivalent    String?               @db.VarChar
-  created_at            DateTime              @default(now()) @db.Timestamp(6)
-  updated_at            DateTime              @default(now()) @db.Timestamp(6)
-  token_price_history   token_price_history[]
+  contract_address           String                @id @db.VarChar
+  coingecko_id               String?               @unique(map: "ix_token_metadata_coingecko_id") @db.VarChar
+  symbol                     String                @db.VarChar
+  name                       String                @db.VarChar
+  asset_platform_id          String?               @db.VarChar
+  description                String?               @db.VarChar
+  categories                 String[]              @db.VarChar
+  homepage_url               String?               @db.VarChar
+  twitter_url                String?               @db.VarChar
+  discord_url                String?               @db.VarChar
+  github_urls                String[]              @db.VarChar
+  logo_large                 String?               @db.VarChar
+  logo_small                 String?               @db.VarChar
+  decimals                   Int?
+  last_synced_at             DateTime?             @db.Timestamp(6)
+  first_seen_at              DateTime?             @db.Timestamp(6)
+  price_available_from       DateTime?             @db.Date
+  price_available_to         DateTime?             @db.Date
+  backfill_status            String?               @db.VarChar
+  backfill_attempted_at      DateTime?             @db.Timestamp(6)
+  backfill_error             String?               @db.VarChar
+  is_rebasing                Boolean?
+  wrapped_equivalent         String?               @db.VarChar
+  created_at                 DateTime              @default(now()) @db.Timestamp(6)
+  updated_at                 DateTime              @default(now()) @db.Timestamp(6)
+  current_price_is_proxy     Boolean?
+  current_price_proxy_token  String?               @db.VarChar
+  current_price_proxy_symbol String?               @db.VarChar
+  real_price_last_found_at   DateTime?             @db.Timestamp(6)
+  token_price_history        token_price_history[]
 
   @@index([backfill_status], map: "idx_token_metadata_backfill")
   @@index([coingecko_id], map: "idx_token_metadata_coingecko")
@@ -922,18 +970,71 @@ model token_metadata {
 }
 
 model token_price_history {
-  id               Int            @id @default(autoincrement())
-  token_address    String         @db.VarChar
-  price_usd        Decimal        @db.Decimal
-  market_cap_usd   Decimal?       @db.Decimal
-  total_volume_usd Decimal?       @db.Decimal
-  timestamp        DateTime       @db.Timestamp(6)
-  source           String?        @db.VarChar
-  token_metadata   token_metadata @relation(fields: [token_address], references: [contract_address], onDelete: Cascade, onUpdate: NoAction)
+  id                  Int            @id @default(autoincrement())
+  token_address       String         @db.VarChar
+  price_usd           Decimal        @db.Decimal
+  market_cap_usd      Decimal?       @db.Decimal
+  total_volume_usd    Decimal?       @db.Decimal
+  timestamp           DateTime       @db.Timestamp(6)
+  source              String?        @db.VarChar
+  is_proxy_price      Boolean?
+  proxy_token_address String?        @db.VarChar
+  proxy_token_symbol  String?        @db.VarChar
+  token_metadata      token_metadata @relation(fields: [token_address], references: [contract_address], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([token_address, timestamp], map: "uq_token_price_ts")
   @@index([timestamp], map: "idx_token_price_date")
   @@index([token_address, timestamp], map: "idx_token_price_ts")
   @@index([timestamp], map: "ix_token_price_history_timestamp")
   @@index([token_address], map: "ix_token_price_history_token_address")
+}
+
+model global_rewards_config {
+  id                   Int      @id @default(autoincrement())
+  config_type          String   @unique @db.VarChar
+  current_value        BigInt
+  current_set_at_block Int
+  current_set_at       DateTime @db.Timestamp(6)
+  previous_value       BigInt?
+  created_at           DateTime @default(now()) @db.Timestamp(6)
+  updated_at           DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([config_type], map: "idx_global_config_type")
+}
+
+model operator_set_state {
+  id                     String    @id @db.VarChar
+  avs_id                 String    @db.VarChar
+  operator_set_id        Int
+  active_operator_count  Int?
+  total_allocation_count Int?
+  total_allocated_usd    Decimal?  @db.Decimal
+  supported_strategies   String[]  @db.VarChar
+  current_split_bips     Int?
+  created_at_block       Int?
+  last_activity_at       DateTime? @db.Timestamp(6)
+  created_at             DateTime  @default(now()) @db.Timestamp(6)
+  updated_at             DateTime  @default(now()) @db.Timestamp(6)
+  avs                    avs       @relation(fields: [avs_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([avs_id], map: "idx_operator_set_state_avs")
+  @@index([total_allocated_usd], map: "idx_operator_set_state_usd")
+  @@index([avs_id], map: "ix_operator_set_state_avs_id")
+}
+
+model token_price_proxies {
+  token_address       String    @id @db.VarChar
+  token_symbol        String    @db.VarChar
+  proxy_token_address String    @db.VarChar
+  proxy_token_symbol  String    @db.VarChar
+  price_multiplier    Decimal?  @db.Decimal
+  relationship_type   String    @db.VarChar
+  reason              String?   @db.VarChar
+  is_active           Boolean?
+  last_used_at        DateTime? @db.Timestamp(6)
+  created_at          DateTime  @default(now()) @db.Timestamp(6)
+  updated_at          DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([is_active], map: "idx_price_proxy_active")
+  @@index([relationship_type], map: "idx_price_proxy_type")
 }

@@ -2,8 +2,8 @@ import { IsOptional, IsEnum } from "class-validator";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 
 export enum AVSStatus {
-  REGISTERED = "registered",
-  UNREGISTERED = "unregistered",
+  REGISTERED = "REGISTERED",
+  UNREGISTERED = "UNREGISTERED",
   ALL = "all",
 }
 

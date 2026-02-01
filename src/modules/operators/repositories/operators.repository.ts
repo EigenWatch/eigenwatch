@@ -233,7 +233,9 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
 
   async findByIdWithStats(operatorId: string): Promise<any | null> {
     return this.execute(async () => {
-      return this.prisma.operators.findUnique({
+      const start = Date.now();
+
+      const operator = await this.prisma.operators.findUnique({
         where: { id: operatorId },
         include: {
           operator_state: true,
@@ -247,9 +249,27 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
               strategies: true,
             },
           },
-          operator_delegator_shares: true,
         },
       });
+      console.log(
+        `[findByIdWithStats] Operator fetch: ${Date.now() - start}ms`,
+      );
+
+      const sharesStart = Date.now();
+      const sharesAgg = await this.prisma.operator_delegator_shares.aggregate({
+        _sum: { shares: true },
+        where: { operator_id: operatorId },
+      });
+      console.log(
+        `[findByIdWithStats] Shares agg: ${Date.now() - sharesStart}ms`,
+      );
+
+      if (!operator) return null;
+
+      return {
+        ...operator,
+        operator_delegator_shares_sum: sharesAgg._sum.shares || 0,
+      };
     });
   }
 

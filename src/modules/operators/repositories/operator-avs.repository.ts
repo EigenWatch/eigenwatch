@@ -18,7 +18,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       };
 
       if (status && status !== "all") {
-        where.current_status = status;
+        where.current_status = status.toUpperCase();
       }
 
       return this.prisma.operator_avs_relationships.findMany({
@@ -304,6 +304,21 @@ export class OperatorAVSRepository extends BaseRepository<any> {
           avs: true,
         },
         orderBy: { changed_at: "desc" },
+      });
+    });
+  }
+
+  /**
+   * Get all commission rates for an operator (PI, AVS, and Operator Set)
+   */
+  async findCommissionRates(operatorId: string): Promise<any[]> {
+    return this.execute(async () => {
+      return this.prisma.operator_commission_rates.findMany({
+        where: { operator_id: operatorId },
+        include: {
+          avs: true,
+          operator_sets: true,
+        },
       });
     });
   }

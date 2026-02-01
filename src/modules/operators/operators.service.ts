@@ -372,10 +372,17 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const commissions =
-      await this.operatorAVSRepository.findCommissionOverview(operatorId);
+    // Fetch commission data and allocations in parallel for impact analysis
+    const [commissions, allocationsData] = await Promise.all([
+      this.operatorAVSRepository.findCommissionOverview(operatorId),
+      this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
+    ]);
 
-    return this.operatorMapper.mapToCommissionOverview(commissions);
+    // Add allocations to commission data for impact analysis calculation
+    return this.operatorMapper.mapToCommissionOverview({
+      ...commissions,
+      allocations: allocationsData.allocations,
+    });
   }
 
   async getCommissionHistory(
@@ -425,7 +432,7 @@ export class OperatorService extends BaseService<any> {
       max_shares?: number;
     },
     pagination: { limit: number; offset: number },
-    sortBy: string = "shares",
+    sortBy: string = "tvs",
     sortOrder: "asc" | "desc" = "desc",
   ): Promise<{ delegators: any[]; summary: any }> {
     const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
@@ -513,6 +520,36 @@ export class OperatorService extends BaseService<any> {
     return this.operatorMapper.mapToDelegatorDetail(delegator);
   }
 
+  async getDelegatorExposure(
+    operatorId: string,
+    stakerId: string,
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    // Fetch delegator data, allocations, and strategy state in parallel
+    const [delegator, allocationsData, operatorMetadata] = await Promise.all([
+      this.operatorDelegatorRepository.findDelegatorDetail(operatorId, stakerId),
+      this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
+      this.operatorRepository.findById(operatorId),
+    ]);
+
+    if (!delegator) {
+      throw new Error(
+        `Delegator ${stakerId} not found for operator ${operatorId}`,
+      );
+    }
+
+    return this.operatorMapper.mapToDelegatorExposure(
+      delegator,
+      allocationsData,
+      operatorMetadata,
+    );
+  }
+
   async getDelegationHistory(
     operatorId: string,
     filters: {
@@ -570,15 +607,13 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const [allocations, strategyStates] = await Promise.all([
-      this.operatorAllocationRepository.findAllocationsOverview(operatorId),
-      this.operatorStrategyRepository.findStrategiesByOperator(operatorId),
-    ]);
+    // Get comprehensive allocation data
+    const data =
+      await this.operatorAllocationRepository.findAllocationsOverviewData(
+        operatorId,
+      );
 
-    return this.operatorMapper.mapToAllocationsOverview({
-      allocations,
-      strategyStates,
-    });
+    return this.operatorMapper.mapToAllocationsOverview(data);
   }
 
   async listDetailedAllocations(
@@ -592,14 +627,15 @@ export class OperatorService extends BaseService<any> {
     pagination: { limit: number; offset: number },
     sortBy: string = "magnitude",
     sortOrder: "asc" | "desc" = "desc",
-  ): Promise<{ allocations: any[]; total: number }> {
+  ): Promise<{ allocations: any[]; total: number; summary: any }> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const [allocations, total] = await Promise.all([
+    // Get allocations and commission rates in parallel
+    const [allocations, total, commissionRates] = await Promise.all([
       this.operatorAllocationRepository.findDetailedAllocations(
         operatorId,
         filters,
@@ -611,15 +647,37 @@ export class OperatorService extends BaseService<any> {
         operatorId,
         filters,
       ),
+      this.operatorAVSRepository.findCommissionRates(operatorId),
     ]);
 
-    const mapped = allocations.map((alloc) =>
-      this.operatorMapper.mapToDetailedAllocation(alloc),
+    // Map allocations with commission data
+    const mapped = await Promise.all(
+      allocations.map((alloc) =>
+        this.operatorMapper.mapToDetailedAllocation(alloc, commissionRates),
+      ),
     );
+
+    // Calculate summary
+    const totalAllocatedUsd = mapped.reduce(
+      (sum, a) => sum + parseFloat(a.allocated_usd || "0"),
+      0,
+    );
+    const commissionsWithValues = mapped.filter((a) => a.commission !== null);
+    const avgCommissionBips =
+      commissionsWithValues.length > 0
+        ? commissionsWithValues.reduce(
+            (sum, a) => sum + (a.commission?.effective_bips || 0),
+            0,
+          ) / commissionsWithValues.length
+        : 0;
 
     return {
       allocations: mapped,
       total,
+      summary: {
+        total_allocated_usd: totalAllocatedUsd.toFixed(2),
+        average_commission_bips: Math.round(avgCommissionBips),
+      },
     };
   }
 

@@ -38,7 +38,7 @@ export class TokenMetadataService {
     if (cached) return cached;
 
     const token = await this.prisma.token_metadata.findUnique({
-      where: { contract_address: tokenAddress },
+      where: { contract_address: tokenAddress.toLowerCase() },
     });
 
     if (!token) return null;
@@ -68,9 +68,10 @@ export class TokenMetadataService {
 
     if (cached) return cached;
 
-    // Look up exchange rate to find underlying token
+    // Look up exchange rate to find underlying token (normalize to lowercase for consistency)
+    const normalizedAddress = strategyAddress.toLowerCase();
     const exchangeRate = await this.prisma.strategy_exchange_rates.findUnique({
-      where: { strategy_address: strategyAddress },
+      where: { strategy_address: normalizedAddress },
     });
 
     let tokenMetadata: TokenMetadata | null = null;
@@ -115,19 +116,22 @@ export class TokenMetadataService {
 
     if (uncached.length === 0) return result;
 
+    // Normalize addresses to lowercase for DB lookup
+    const uncachedLower = uncached.map((a) => a.toLowerCase());
+
     // Fetch exchange rates for uncached addresses
     const exchangeRates = await this.prisma.strategy_exchange_rates.findMany({
-      where: { strategy_address: { in: uncached } },
+      where: { strategy_address: { in: uncachedLower } },
     });
 
     const rateMap = new Map(
       exchangeRates.map((r) => [r.strategy_address.toLowerCase(), r]),
     );
 
-    // Get unique underlying tokens
+    // Get unique underlying tokens (normalized to lowercase)
     const underlyingTokens = exchangeRates
       .filter((r) => r.underlying_token)
-      .map((r) => r.underlying_token!);
+      .map((r) => r.underlying_token!.toLowerCase());
 
     // Fetch token metadata
     const tokens = await this.prisma.token_metadata.findMany({

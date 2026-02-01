@@ -468,11 +468,11 @@
             "required": false,
             "in": "query",
             "schema": {
-              "default": "registered",
+              "default": "REGISTERED",
               "type": "string",
               "enum": [
-                "registered",
-                "unregistered",
+                "REGISTERED",
+                "UNREGISTERED",
                 "all"
               ]
             }
@@ -790,6 +790,7 @@
             "in": "query",
             "description": "Sort by field",
             "schema": {
+              "default": "tvs",
               "type": "string",
               "enum": [
                 "shares",
@@ -804,6 +805,7 @@
             "in": "query",
             "description": "Sort order",
             "schema": {
+              "default": "desc",
               "type": "string",
               "enum": [
                 "asc",
@@ -962,6 +964,49 @@
           }
         ],
         "summary": "Get delegator detail",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/{stakerId}/exposure": {
+      "get": {
+        "description": "Shows a delegator's risk exposure through this operator, including per-AVS exposure and potential slashing impact",
+        "operationId": "OperatorsController_getDelegatorExposure",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stakerId",
+            "required": true,
+            "in": "path",
+            "description": "Staker ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegator exposure"
+          },
+          "404": {
+            "description": "Operator or delegator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegator risk exposure",
         "tags": [
           "Operators"
         ]
@@ -2840,6 +2885,103 @@
           "p90_pi_commission_bips"
         ]
       },
+      "CommissionSourceBreakdownDto": {
+        "type": "object",
+        "properties": {
+          "usd_amount": {
+            "type": "string",
+            "example": "1250000.00",
+            "description": "USD amount under this commission source"
+          },
+          "pct_of_total": {
+            "type": "string",
+            "example": "45.5",
+            "description": "Percentage of total allocations"
+          }
+        },
+        "required": [
+          "usd_amount",
+          "pct_of_total"
+        ]
+      },
+      "AllocationByCommissionSourceDto": {
+        "type": "object",
+        "properties": {
+          "pi": {
+            "description": "Allocations using PI commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          },
+          "avs": {
+            "description": "Allocations using AVS-specific commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          },
+          "operator_set": {
+            "description": "Allocations using Operator Set commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pi",
+          "avs",
+          "operator_set"
+        ]
+      },
+      "CommissionImpactAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "weighted_average_commission_bips": {
+            "type": "number",
+            "example": 850,
+            "description": "Weighted average commission across all allocations (bips)"
+          },
+          "weighted_average_commission_pct": {
+            "type": "string",
+            "example": "8.50",
+            "description": "Weighted average commission as percentage"
+          },
+          "allocation_by_commission_source": {
+            "description": "Breakdown of allocations by commission source",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AllocationByCommissionSourceDto"
+              }
+            ]
+          },
+          "vs_network_average": {
+            "type": "string",
+            "enum": [
+              "lower",
+              "similar",
+              "higher"
+            ],
+            "description": "How this operator's commission compares to network average"
+          },
+          "percentile_rank": {
+            "type": "number",
+            "example": 65,
+            "description": "Percentile rank (e.g., 65 means lower commission than 65% of operators)"
+          }
+        },
+        "required": [
+          "weighted_average_commission_bips",
+          "weighted_average_commission_pct",
+          "allocation_by_commission_source",
+          "vs_network_average",
+          "percentile_rank"
+        ]
+      },
       "CommissionOverviewResponseDto": {
         "type": "object",
         "properties": {
@@ -2880,6 +3022,14 @@
                 "$ref": "#/components/schemas/NetworkBenchmarksDto"
               }
             ]
+          },
+          "impact_analysis": {
+            "description": "Analysis of commission impact on delegators (weighted by allocation value)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionImpactAnalysisDto"
+              }
+            ]
           }
         },
         "required": [
@@ -2887,7 +3037,8 @@
           "avs_commissions",
           "operator_set_commissions",
           "behavior_profile",
-          "network_benchmarks"
+          "network_benchmarks",
+          "impact_analysis"
         ]
       },
       "CommissionHistoryItemDto": {

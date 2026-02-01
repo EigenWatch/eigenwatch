@@ -125,6 +125,54 @@ export class NetworkBenchmarksDto {
   p90_pi_commission_bips: number;
 }
 
+export class CommissionSourceBreakdownDto {
+  @ApiProperty({ example: "1250000.00", description: "USD amount under this commission source" })
+  usd_amount: string;
+
+  @ApiProperty({ example: "45.5", description: "Percentage of total allocations" })
+  pct_of_total: string;
+}
+
+export class AllocationByCommissionSourceDto {
+  @ApiProperty({ description: "Allocations using PI commission" })
+  pi: CommissionSourceBreakdownDto;
+
+  @ApiProperty({ description: "Allocations using AVS-specific commission" })
+  avs: CommissionSourceBreakdownDto;
+
+  @ApiProperty({ description: "Allocations using Operator Set commission" })
+  operator_set: CommissionSourceBreakdownDto;
+}
+
+export class CommissionImpactAnalysisDto {
+  @ApiProperty({
+    example: 850,
+    description: "Weighted average commission across all allocations (bips)",
+  })
+  weighted_average_commission_bips: number;
+
+  @ApiProperty({
+    example: "8.50",
+    description: "Weighted average commission as percentage",
+  })
+  weighted_average_commission_pct: string;
+
+  @ApiProperty({ description: "Breakdown of allocations by commission source" })
+  allocation_by_commission_source: AllocationByCommissionSourceDto;
+
+  @ApiProperty({
+    enum: ["lower", "similar", "higher"],
+    description: "How this operator's commission compares to network average",
+  })
+  vs_network_average: "lower" | "similar" | "higher";
+
+  @ApiProperty({
+    example: 65,
+    description: "Percentile rank (e.g., 65 means lower commission than 65% of operators)",
+  })
+  percentile_rank: number;
+}
+
 export class CommissionOverviewResponseDto {
   @ApiProperty({ description: "Programmatic Incentive commission details" })
   pi_commission: PICommissionDto | null;
@@ -148,6 +196,11 @@ export class CommissionOverviewResponseDto {
     description: "Network-wide benchmark statistics for PI commissions",
   })
   network_benchmarks: NetworkBenchmarksDto;
+
+  @ApiProperty({
+    description: "Analysis of commission impact on delegators (weighted by allocation value)",
+  })
+  impact_analysis: CommissionImpactAnalysisDto;
 }
 
 export class CommissionHistoryItemDto {

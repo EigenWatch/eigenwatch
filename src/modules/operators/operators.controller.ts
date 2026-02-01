@@ -548,6 +548,41 @@ export class OperatorsController extends BaseController<any> {
     return ResponseHelper.ok(detail, "Delegator detail retrieved successfully");
   }
 
+  /**
+   * Endpoint: Get Delegator Risk Exposure
+   */
+  @Get(":id/delegators/:stakerId/exposure")
+  @Public()
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegator risk exposure",
+    description:
+      "Shows a delegator's risk exposure through this operator, including per-AVS exposure and potential slashing impact",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "stakerId", description: "Staker ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegator exposure",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator or delegator not found",
+  })
+  async getDelegatorExposure(
+    @Param("id") id: string,
+    @Param("stakerId") stakerId: string,
+  ) {
+    const exposure = await this.operatorService.getDelegatorExposure(
+      id,
+      stakerId,
+    );
+    return ResponseHelper.ok(
+      exposure,
+      "Delegator exposure retrieved successfully",
+    );
+  }
+
   // ============================================================================
   // ALLOCATION ENDPOINTS (15-16)
   // ============================================================================
