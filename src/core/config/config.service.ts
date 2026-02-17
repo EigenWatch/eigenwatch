@@ -15,10 +15,17 @@ export class AppConfigService {
     };
   }
 
-  get database() {
+  get analyticsDatabase() {
     return {
-      url: env.DATABASE_URL,
-      poolSize: env.DATABASE_POOL_SIZE,
+      url: env.ANALYTICS_DATABASE_URL,
+      poolSize: env.ANALYTICS_DATABASE_POOL_SIZE,
+    };
+  }
+
+  get userDatabase() {
+    return {
+      url: env.USER_DATABASE_URL,
+      poolSize: env.USER_DATABASE_POOL_SIZE,
     };
   }
 

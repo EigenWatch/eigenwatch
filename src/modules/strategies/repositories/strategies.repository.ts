@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { BaseRepository } from "@/core/common/base.repository";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import {
   ListStrategiesDto,
   StrategySortField,
@@ -8,7 +8,7 @@ import {
 
 @Injectable()
 export class StrategiesRepository extends BaseRepository<any> {
-  constructor(protected readonly prisma: PrismaService) {
+  constructor(protected readonly prisma: PrismaAnalyticsService) {
     super(prisma);
   }
 

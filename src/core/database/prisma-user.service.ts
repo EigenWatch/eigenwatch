@@ -10,19 +10,19 @@ import { AppConfigService } from "../config/config.service";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from ".prisma/user-client";
 
 @Injectable()
-export class PrismaService
+export class PrismaUserService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  private readonly logger = new Logger(PrismaService.name);
+  private readonly logger = new Logger(PrismaUserService.name);
 
   constructor(private config: AppConfigService) {
     super({
       adapter: new PrismaPg({
-        connectionString: `${process.env.DATABASE_URL}`,
+        connectionString: `${process.env.USER_DATABASE_URL}`,
       }),
       log: [
         { level: "query", emit: "event" },
@@ -31,57 +31,45 @@ export class PrismaService
       ],
     });
 
-    // Setup query logging
     this.$on("query" as any, (e: any) => {
       if (config.server.isDevelopment) {
         this.logger.debug(
-          `Query: ${e.query} - Params: ${e.params} - Duration: ${e.duration}ms`
+          `[UserDB] Query: ${e.query} - Duration: ${e.duration}ms`
         );
       }
 
-      // Log slow queries in production
       if (e.duration > 1000) {
         this.logger.warn(
-          `Slow query detected: ${e.query} - Duration: ${e.duration}ms`
+          `[UserDB] Slow query detected: ${e.query} - Duration: ${e.duration}ms`
         );
       }
     });
 
     this.$on("error" as any, (e: any) => {
-      this.logger.error(`Prisma error: ${e.message}`, e.stack);
+      this.logger.error(`[UserDB] Prisma error: ${e.message}`, e.stack);
     });
   }
 
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log("Database connection established");
-      await this.verifyReadOnly();
+      this.logger.log("User database connection established");
     } catch (error) {
-      this.logger.error("Failed to connect to database", error);
+      this.logger.error("Failed to connect to user database", error);
       throw error;
     }
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
-    this.logger.log("Database connection closed");
-  }
-
-  private async verifyReadOnly() {
-    try {
-      await this.$queryRaw`SELECT 1`;
-      this.logger.log("Read-only verification passed");
-    } catch (error) {
-      this.logger.error("Read-only verification failed", error);
-    }
+    this.logger.log("User database connection closed");
   }
 
   async executeSafe<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();
     } catch (error) {
-      this.logger.error("Database query failed", error);
+      this.logger.error("[UserDB] Database query failed", error);
 
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         switch (error.code) {
@@ -90,6 +78,12 @@ export class PrismaService
               ERROR_CODES.NOT_FOUND,
               "Record not found",
               HttpStatus.NOT_FOUND
+            );
+          case "P2002":
+            throw new AppException(
+              ERROR_CODES.VALIDATION_ERROR,
+              "Record already exists",
+              HttpStatus.CONFLICT
             );
           case "P2024":
             throw new AppException(

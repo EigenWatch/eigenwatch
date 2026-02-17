@@ -1,0 +1,125 @@
+generator client {
+  provider     = "prisma-client-js"
+  output       = "../../node_modules/.prisma/user-client"
+  engineType   = "binary"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model users {
+  id             String    @id @default(uuid())
+  wallet_address String    @unique
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  last_login_at  DateTime?
+
+  display_name String?
+  avatar_url   String?
+
+  tier               UserTier  @default(FREE)
+  tier_expires_at    DateTime?
+  stripe_customer_id String?
+
+  emails      user_emails[]
+  sessions    user_sessions[]
+  preferences user_preferences?
+  watchlist   user_watchlist[]
+  nonces      auth_nonces[]
+}
+
+model user_emails {
+  id           String    @id @default(uuid())
+  user_id      String
+  email        String
+  is_primary   Boolean   @default(false)
+  is_verified  Boolean   @default(false)
+  verified_at  DateTime?
+  created_at   DateTime  @default(now())
+
+  marketing_opt_in Boolean @default(false)
+  alerts_opt_in    Boolean @default(true)
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, email])
+  @@index([email])
+}
+
+model user_sessions {
+  id                 String    @id @default(uuid())
+  user_id            String
+  refresh_token_hash String
+  device_info        String?
+  ip_address         String?
+  created_at         DateTime  @default(now())
+  expires_at         DateTime
+  revoked_at         DateTime?
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([refresh_token_hash])
+}
+
+model auth_nonces {
+  id             String   @id @default(uuid())
+  wallet_address String
+  nonce          String   @unique
+  message        String
+  created_at     DateTime @default(now())
+  expires_at     DateTime
+  used           Boolean  @default(false)
+
+  user users? @relation(fields: [wallet_address], references: [wallet_address])
+
+  @@index([wallet_address])
+  @@index([expires_at])
+}
+
+model email_verification_codes {
+  id         String   @id @default(uuid())
+  email      String
+  code       String
+  created_at DateTime @default(now())
+  expires_at DateTime
+  used       Boolean  @default(false)
+  attempts   Int      @default(0)
+
+  @@index([email, code])
+  @@index([expires_at])
+}
+
+model user_preferences {
+  id                     String   @id @default(uuid())
+  user_id                String   @unique
+  theme                  String   @default("dark")
+  default_currency       String   @default("USD")
+  notification_frequency String   @default("daily")
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model user_watchlist {
+  id            String   @id @default(uuid())
+  user_id       String
+  entity_type   String // "operator" | "avs" | "strategy"
+  entity_id     String
+  created_at    DateTime @default(now())
+  alert_enabled Boolean  @default(false)
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, entity_type, entity_id])
+  @@index([user_id])
+}
+
+enum UserTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
