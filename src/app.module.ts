@@ -22,6 +22,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { SearchModule } from "./modules/search/search.module";
 import { NetworkModule } from "./modules/network/network.module";
 import { StrategiesModule } from "./modules/strategies/strategies.module";
+import { UserModule } from "./modules/user/user.module";
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     NetworkModule,
     StrategiesModule,
     HealthModule,
+    UserModule,
   ],
   providers: [
     {

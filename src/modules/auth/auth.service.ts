@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  HttpStatus,
-} from "@nestjs/common";
+import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "crypto";
 import { SignatureVerificationService } from "./signature-verification.service";
@@ -40,6 +36,9 @@ export class AuthService {
     const nonce = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
     const message = this.signatureVerification.generateMessage(nonce);
+
+    // Ensure user exists before creating nonce (FK constraint)
+    await this.userRepository.findOrCreate(address);
 
     await this.nonceRepository.create({
       walletAddress: address,
@@ -104,14 +103,19 @@ export class AuthService {
     await this.nonceRepository.markUsed(nonceRecord.id);
 
     // 5. Find or create user
-    const { user, isNew } =
-      await this.userRepository.findOrCreate(address);
+    const { user, isNew } = await this.userRepository.findOrCreate(address);
 
     // 6. Update last login
     await this.userRepository.updateLastLogin(user.id);
 
     // 7. Issue tokens
-    const tokens = await this.issueTokenPair(user.id, user.wallet_address, user.tier as UserTier, ipAddress, deviceInfo);
+    const tokens = await this.issueTokenPair(
+      user.id,
+      user.wallet_address,
+      user.tier as UserTier,
+      ipAddress,
+      deviceInfo,
+    );
 
     // 8. Build auth user response
     const authUser: AuthUser = {

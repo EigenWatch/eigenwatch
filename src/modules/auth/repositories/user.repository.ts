@@ -50,4 +50,18 @@ export class UserRepository {
       data: { tier, tier_expires_at: expiresAt },
     });
   }
+
+  async updateProfile(userId: string, data: { display_name?: string }) {
+    return this.prisma.users.update({
+      where: { id: userId },
+      data,
+      include: { emails: true, preferences: true },
+    });
+  }
+
+  async deleteUser(userId: string) {
+    return this.prisma.users.delete({
+      where: { id: userId },
+    });
+  }
 }

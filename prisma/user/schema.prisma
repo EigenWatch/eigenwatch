@@ -98,6 +98,16 @@ model user_preferences {
   theme                  String   @default("dark")
   default_currency       String   @default("USD")
   notification_frequency String   @default("daily")
+
+  // Notification preferences
+  risk_alerts_operator_changes Boolean @default(true)
+  risk_alerts_slashing         Boolean @default(true)
+  risk_alerts_tvs_changes      Boolean @default(true)
+  watchlist_daily_summary      Boolean @default(true)
+  watchlist_status_changes     Boolean @default(true)
+  product_updates              Boolean @default(false)
+  newsletter                   Boolean @default(false)
+
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
 

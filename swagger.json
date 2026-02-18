@@ -2793,6 +2793,171 @@
           "Health"
         ]
       }
+    },
+    "/api/v1/user/profile": {
+      "put": {
+        "operationId": "UserController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user profile",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/preferences": {
+      "get": {
+        "operationId": "UserController_getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get user preferences",
+        "tags": [
+          "User"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user preferences",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions": {
+      "get": {
+        "operationId": "UserController_getSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List active sessions",
+        "tags": [
+          "User"
+        ]
+      },
+      "delete": {
+        "operationId": "UserController_revokeAllSessions",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke all other sessions",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions/{id}": {
+      "delete": {
+        "operationId": "UserController_revokeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a specific session",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/account": {
+      "delete": {
+        "operationId": "UserController_deleteAccount",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete user account",
+        "tags": [
+          "User"
+        ]
+      }
     }
   },
   "info": {
@@ -3339,6 +3504,41 @@
         "required": [
           "operator_ids"
         ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "Display name"
+          }
+        }
+      },
+      "UpdatePreferencesDto": {
+        "type": "object",
+        "properties": {
+          "risk_alerts_operator_changes": {
+            "type": "boolean"
+          },
+          "risk_alerts_slashing": {
+            "type": "boolean"
+          },
+          "risk_alerts_tvs_changes": {
+            "type": "boolean"
+          },
+          "watchlist_daily_summary": {
+            "type": "boolean"
+          },
+          "watchlist_status_changes": {
+            "type": "boolean"
+          },
+          "product_updates": {
+            "type": "boolean"
+          },
+          "newsletter": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }
