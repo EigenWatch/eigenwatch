@@ -8,7 +8,9 @@ export enum StrategySortField {
   ENCUMBERED = "encumbered",
 }
 
-export class ListOperatorStrategiesDto {
+import { PaginationDto } from "@/shared/dto/pagination.dto";
+
+export class ListOperatorStrategiesDto extends PaginationDto {
   @ApiPropertyOptional({ description: "Minimum TVS" })
   @IsOptional()
   @Type(() => Number)

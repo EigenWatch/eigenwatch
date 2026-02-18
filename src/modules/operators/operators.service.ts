@@ -28,6 +28,7 @@ import {
   AVSRegistrationHistoryItem,
 } from "./entities/avs.entities";
 import { OperatorAllocationsOverview } from "./entities/allocation.entities";
+import { PaginationHelper } from "@/core/common/pagination.helper";
 
 import { CacheService } from "@/core/cache/cache.service";
 
@@ -99,14 +100,21 @@ export class OperatorService extends BaseService<any> {
   async findOperatorStrategies(
     operatorId: string,
     filters: ListOperatorStrategiesDto,
-    tier: UserTier = "FREE",
+    tier: UserTier = "free",
   ): Promise<any> {
     const cacheKey = `operators:strategies:${operatorId}:${JSON.stringify(filters)}`;
-    const cached =
-      await this.cacheService.get<OperatorStrategyListItem[]>(cacheKey);
+    const cached = await this.cacheService.get<{
+      strategies: OperatorStrategyListItem[];
+      total: number;
+    }>(cacheKey);
 
     if (cached) {
-      return this.wrapStrategiesResponse(cached, tier);
+      return this.wrapStrategiesResponse(
+        cached.strategies,
+        cached.total,
+        { limit: filters.limit || 50, offset: filters.offset || 0 },
+        tier,
+      );
     }
 
     // Verify operator exists
@@ -185,18 +193,32 @@ export class OperatorService extends BaseService<any> {
         );
     }
 
-    await this.cacheService.set(cacheKey, filtered, 300); // 5 minutes TTL
+    const total = filtered.length;
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    const sliced = filtered.slice(offset, offset + limit);
 
-    return this.wrapStrategiesResponse(filtered, tier);
+    await this.cacheService.set(cacheKey, { strategies: sliced, total }, 300); // 5 minutes TTL
+
+    return this.wrapStrategiesResponse(sliced, total, { limit, offset }, tier);
   }
 
   private wrapStrategiesResponse(
     strategies: OperatorStrategyListItem[],
+    total: number,
+    pagination: { limit: number; offset: number },
     tier: UserTier,
   ) {
-    if (tier === "FREE") {
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      pagination.limit,
+      pagination.offset,
+    );
+
+    if (tier === "free") {
       return {
-        total_strategies: strategies.length,
+        total_strategies: total,
+        pagination: paginationMeta,
         distribution: strategies.map((s) => ({
           strategy_address: s.strategy_address,
           token_symbol: s.strategy_symbol,
@@ -212,7 +234,8 @@ export class OperatorService extends BaseService<any> {
     }
 
     return {
-      total_strategies: strategies.length,
+      total_strategies: total,
+      pagination: paginationMeta,
       distribution: null,
       strategies,
       tier_context: {
@@ -306,7 +329,7 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     status?: string,
     sortBy?: string,
-    tier: UserTier = "FREE",
+    tier: UserTier = "free",
   ): Promise<any> {
     const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
     const cached =
@@ -355,7 +378,7 @@ export class OperatorService extends BaseService<any> {
       await this.cacheService.set(cacheKey, mapped, 300); // 5 minutes TTL
     }
 
-    if (tier === "FREE") {
+    if (tier === "free") {
       return {
         total_avs: mapped.length,
         active_avs: mapped.filter((r) => r.current_status === "registered")
@@ -439,13 +462,13 @@ export class OperatorService extends BaseService<any> {
 
   async getCommissionOverview(
     operatorId: string,
-    tier: UserTier = "FREE",
+    tier: UserTier = "free",
   ): Promise<any> {
     const cacheKey = `operators:commission:${operatorId}`;
     const cached = await this.cacheService.get<any>(cacheKey);
 
     if (cached) {
-      if (tier === "FREE") {
+      if (tier === "free") {
         return {
           current_rate: cached.pi_commission?.current_bips,
           positioning: cached.pi_commission?.total_changes,
@@ -487,7 +510,7 @@ export class OperatorService extends BaseService<any> {
 
     await this.cacheService.set(cacheKey, overview, 300); // 5 minutes TTL
 
-    if (tier === "FREE") {
+    if (tier === "free") {
       return {
         current_rate: overview.pi_commission?.current_bips,
         positioning: overview.pi_commission?.total_changes,
@@ -560,7 +583,7 @@ export class OperatorService extends BaseService<any> {
     pagination: { limit: number; offset: number },
     sortBy: string = "tvs",
     sortOrder: "asc" | "desc" = "desc",
-    tier: UserTier = "FREE",
+    tier: UserTier = "free",
   ): Promise<{ delegators: any[]; summary: any; tier_context: any }> {
     const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
     const cached = await this.cacheService.get<{
@@ -616,7 +639,7 @@ export class OperatorService extends BaseService<any> {
       }),
     );
 
-    if (tier === "FREE") {
+    if (tier === "free") {
       const result = {
         delegators: [],
         summary,
@@ -751,7 +774,7 @@ export class OperatorService extends BaseService<any> {
 
   async getAllocationsOverview(
     operatorId: string,
-    tier: UserTier = "FREE",
+    tier: UserTier = "free",
   ): Promise<any> {
     const cacheKey = `operators:allocations-overview:${operatorId}`;
     const cached =
@@ -777,7 +800,7 @@ export class OperatorService extends BaseService<any> {
         return result;
       })());
 
-    if (tier === "FREE") {
+    if (tier === "free") {
       return {
         total_allocations: overview.summary?.total_allocation_count,
         total_magnitude_usd: overview.summary?.total_allocated_usd,

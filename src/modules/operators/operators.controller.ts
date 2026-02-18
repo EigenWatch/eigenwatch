@@ -222,7 +222,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() filters: ListOperatorStrategiesDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user?.tier ?? "free";
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
       filters,
@@ -284,7 +284,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() query: ListOperatorAVSDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user?.tier ?? "free";
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
@@ -384,7 +384,7 @@ export class OperatorsController extends BaseController<any> {
     @Param("id") id: string,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user?.tier ?? "free";
     const overview = await this.operatorService.getCommissionOverview(id, tier);
     return ResponseHelper.ok(
       overview,
@@ -452,7 +452,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() query: ListDelegatorsDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user?.tier ?? "free";
     const paginationParams = this.handlePagination(query);
 
     const result = await this.operatorService.listDelegators(
@@ -626,7 +626,7 @@ export class OperatorsController extends BaseController<any> {
     @Param("id") id: string,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user?.tier ?? "free";
     const overview = await this.operatorService.getAllocationsOverview(id, tier);
     return ResponseHelper.ok(
       overview,
