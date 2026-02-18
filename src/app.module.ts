@@ -13,7 +13,8 @@ import { PrismaExceptionFilter } from "./core/filters/prisma-exception.filter";
 import { ApiKeyGuard } from "./core/guards/api-key.guard";
 import { JwtAuthGuard } from "./core/guards/jwt-auth.guard";
 import { RolesGuard } from "./core/guards/roles.guard";
-// import { AuthModule } from "./modules/auth/auth.module";
+import { TierGuard } from "./core/guards/tier.guard";
+import { AuthModule } from "./modules/auth/auth.module";
 import { OperatorsModule } from "./modules/operators/operators.module";
 import { HealthModule } from "./modules/health/health.module";
 // import { AVSModule } from "./modules/avs/avs.module";
@@ -28,7 +29,7 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     LoggerModule,
     PrismaModule,
     CacheModule,
-    // AuthModule,
+    AuthModule,
     OperatorsModule,
     // AVSModule,
     // AnalyticsModule,
@@ -69,6 +70,10 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TierGuard,
     },
   ],
 })

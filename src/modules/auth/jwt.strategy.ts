@@ -1,12 +1,16 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Injectable } from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { AppConfigService } from "src/core/config/config.service";
+import { UserRepository } from "./repositories/user.repository";
+import { AuthUser, JwtPayload } from "src/shared/types/auth.types";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: AppConfigService) {
+  constructor(
+    config: AppConfigService,
+    private userRepository: UserRepository,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -14,7 +18,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
-    return { userId: payload.sub, address: payload.address };
+  async validate(payload: JwtPayload): Promise<AuthUser> {
+    const user = await this.userRepository.findById(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    return {
+      id: user.id,
+      wallet_address: user.wallet_address,
+      tier: user.tier as AuthUser["tier"],
+      email_verified: user.emails?.some((e) => e.is_verified) ?? false,
+    };
   }
 }
