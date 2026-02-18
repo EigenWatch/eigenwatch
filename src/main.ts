@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import { LoggerService } from "./core/logging/logger.service";
 import { AppConfigService } from "./core/config/config.service";
+import cookieParser = require("cookie-parser");
 import * as fs from "fs";
 import * as path from "path";
 
@@ -16,6 +17,9 @@ async function bootstrap() {
 
   // Global prefix
   app.setGlobalPrefix("api/v1");
+
+  // Cookie parser
+  app.use(cookieParser());
 
   // CORS configuration
   const corsOrigins = config.cors.origins;
@@ -33,20 +37,20 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-    })
+    }),
   );
 
   // Swagger documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle("EigenWatch API")
     .setDescription(
-      "API for comprehensive EigenLayer operator analytics, performance tracking, and network insights"
+      "API for comprehensive EigenLayer operator analytics, performance tracking, and network insights",
     )
     .setVersion("1.0")
     .setContact(
       "EigenWatch Team",
       "https://eigenwatch.xyz",
-      "eigenwatchteam@gmail.com"
+      "eigenwatchteam@gmail.com",
     )
     .addServer("http://localhost:8000", "Development")
     .addServer("https://api-staging.eigenwatch.xyz", "Staging")
@@ -58,7 +62,7 @@ async function bootstrap() {
         in: "header",
         description: "API key for authentication",
       },
-      "api-key"
+      "api-key",
     )
     .addBearerAuth(
       {
@@ -67,7 +71,7 @@ async function bootstrap() {
         bearerFormat: "JWT",
         description: "JWT token from wallet signature",
       },
-      "jwt"
+      "jwt",
     )
     .addTag("Operators", "Operator discovery and analytics")
     // .addTag("Strategies", "Strategy-specific analytics")

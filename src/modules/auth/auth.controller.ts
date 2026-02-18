@@ -4,11 +4,13 @@ import {
   Get,
   Body,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { CurrentUser } from "src/core/decorators/current-user.decorator";
 import { Public } from "src/core/decorators/public.decorator";
 import { SkipApiKey } from "src/core/decorators/skip-api-key.decorator";
@@ -38,17 +40,32 @@ export class AuthController {
   @SkipApiKey()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Verify signature and issue JWT tokens" })
-  async verify(@Body() body: VerifySignatureDto, @Req() req: Request) {
+  async verify(
+    @Body() body: VerifySignatureDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const ipAddress = req.ip;
     const deviceInfo = req.headers["user-agent"];
 
-    return this.authService.verifyAndAuthenticate(
+    const result = await this.authService.verifyAndAuthenticate(
       body.address,
       body.signature,
       body.nonce,
       ipAddress,
       deviceInfo,
     );
+
+    // Set refresh token as HttpOnly cookie
+    res.cookie("refresh_token", result.tokens.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // Allows cookie to be sent on top-level navigation
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
+    });
+
+    return result;
   }
 
   @Post("refresh")
@@ -56,15 +73,37 @@ export class AuthController {
   @SkipApiKey()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Refresh access token using refresh token" })
-  async refresh(@Body() body: RefreshTokenDto, @Req() req: Request) {
+  async refresh(
+    @Body() body: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const ipAddress = req.ip;
     const deviceInfo = req.headers["user-agent"];
 
-    return this.authService.refreshTokens(
-      body.refresh_token,
+    // Try to get token from body or cookie
+    const refreshToken = body.refresh_token || req.cookies?.refresh_token;
+
+    if (!refreshToken) {
+      throw new UnauthorizedException("No refresh token provided");
+    }
+
+    const result = await this.authService.refreshTokens(
+      refreshToken,
       ipAddress,
       deviceInfo,
     );
+
+    // Set new refresh token as cookie (rotation)
+    res.cookie("refresh_token", result.tokens.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    return result;
   }
 
   @Post("logout")
@@ -72,8 +111,24 @@ export class AuthController {
   @SkipApiKey()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Logout and revoke refresh token" })
-  async logout(@Body() body: RefreshTokenDto) {
-    await this.authService.logout(body.refresh_token);
+  async logout(
+    @Body() body: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = body.refresh_token || req.cookies?.refresh_token;
+
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
+    }
+
+    // Clear cookie
+    res.clearCookie("refresh_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
   }
 
   @Post("logout-all")

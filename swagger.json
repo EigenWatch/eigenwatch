@@ -3057,10 +3057,7 @@
             "type": "string",
             "description": "Refresh token"
           }
-        },
-        "required": [
-          "refresh_token"
-        ]
+        }
       },
       "PICommissionDto": {
         "type": "object",

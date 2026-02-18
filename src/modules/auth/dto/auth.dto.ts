@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsNotEmpty, Matches } from "class-validator";
+import { IsString, IsNotEmpty, Matches, IsOptional } from "class-validator";
 
 export class ChallengeRequestDto {
   @ApiProperty({
@@ -38,8 +38,8 @@ export class VerifySignatureDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty({ description: "Refresh token" })
+  @ApiProperty({ description: "Refresh token", required: false })
   @IsString()
-  @IsNotEmpty()
-  refresh_token: string;
+  @IsOptional()
+  refresh_token?: string;
 }

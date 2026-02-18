@@ -112,7 +112,7 @@ export class AuthService {
     const tokens = await this.issueTokenPair(
       user.id,
       user.wallet_address,
-      user.tier as UserTier,
+      (user.tier as string).toLowerCase() as UserTier,
       ipAddress,
       deviceInfo,
     );
@@ -121,7 +121,7 @@ export class AuthService {
     const authUser: AuthUser = {
       id: user.id,
       wallet_address: user.wallet_address,
-      tier: user.tier as UserTier,
+      tier: (user.tier as string).toLowerCase() as UserTier,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
     };
 
@@ -162,7 +162,7 @@ export class AuthService {
     const tokens = await this.issueTokenPair(
       user.id,
       user.wallet_address,
-      user.tier as UserTier,
+      (user.tier as string).toLowerCase() as UserTier,
       ipAddress,
       deviceInfo,
     );
@@ -170,7 +170,7 @@ export class AuthService {
     const authUser: AuthUser = {
       id: user.id,
       wallet_address: user.wallet_address,
-      tier: user.tier as UserTier,
+      tier: (user.tier as string).toLowerCase() as UserTier,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
     };
 

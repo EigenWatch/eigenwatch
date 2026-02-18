@@ -1,4 +1,4 @@
-export type UserTier = "FREE" | "PRO" | "ENTERPRISE";
+export type UserTier = "free" | "pro" | "enterprise";
 
 export interface JwtPayload {
   sub: string; // User ID
