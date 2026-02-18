@@ -22,7 +22,7 @@ export class OperatorStrategyRepository extends BaseRepository<any> {
 
   async findStrategyByOperator(
     operatorId: string,
-    strategyId: string
+    strategyId: string,
   ): Promise<any> {
     return this.execute(async () => {
       return this.prisma.operator_strategy_state.findFirst({
@@ -39,7 +39,7 @@ export class OperatorStrategyRepository extends BaseRepository<any> {
 
   async countDelegatorsByStrategy(
     operatorId: string,
-    strategyId: string
+    strategyId: string,
   ): Promise<number> {
     return this.execute(async () => {
       return this.prisma.operator_delegator_shares.count({
@@ -52,11 +52,40 @@ export class OperatorStrategyRepository extends BaseRepository<any> {
     });
   }
 
+  /**
+   * Batch count delegators for multiple strategies in a single query.
+   * Returns a Map of strategy_id -> delegator count.
+   */
+  async countDelegatorsByStrategies(
+    operatorId: string,
+    strategyIds: string[],
+  ): Promise<Map<string, number>> {
+    return this.execute(async () => {
+      if (strategyIds.length === 0) return new Map();
+
+      const counts = await this.prisma.operator_delegator_shares.groupBy({
+        by: ["strategy_id"],
+        where: {
+          operator_id: operatorId,
+          strategy_id: { in: strategyIds },
+          shares: { gt: 0 },
+        },
+        _count: { _all: true },
+      });
+
+      const map = new Map<string, number>();
+      for (const c of counts) {
+        map.set(c.strategy_id, c._count._all);
+      }
+      return map;
+    });
+  }
+
   async findStrategyTVSHistory(
     operatorId: string,
     strategyId: string,
     dateFrom: Date,
-    dateTo: Date
+    dateTo: Date,
   ): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_strategy_daily_snapshots.findMany({

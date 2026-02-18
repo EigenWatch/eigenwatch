@@ -1039,3 +1039,58 @@ model token_price_proxies {
   @@index([is_active], map: "idx_price_proxy_active")
   @@index([relationship_type], map: "idx_price_proxy_type")
 }
+
+model aggregation_verification_results {
+  id                   Int       @id @default(autoincrement())
+  check_name           String    @db.VarChar
+  check_category       String    @db.VarChar
+  operators_checked    Int?
+  operators_mismatched Int?
+  max_discrepancy      Decimal?  @db.Decimal
+  total_discrepancy    Decimal?  @db.Decimal
+  sample_mismatches    Json?
+  status               String    @db.VarChar
+  measured_at          DateTime? @db.Timestamp(6)
+
+  @@index([check_category, measured_at], map: "idx_verification_category")
+  @@index([check_name, measured_at], map: "idx_verification_name")
+  @@index([status, measured_at], map: "idx_verification_status")
+  @@index([measured_at], map: "ix_aggregation_verification_results_measured_at")
+}
+
+model pipeline_sync_status_v2 {
+  id                     Int       @id @default(autoincrement())
+  pipeline               String    @db.VarChar
+  event_type             String    @db.VarChar
+  contract               String?   @db.VarChar
+  count_subgraph         Int?
+  count_db               Int?
+  count_diff             Int?
+  sync_pct               Decimal?  @db.Decimal
+  last_updated_block     Int?
+  last_updated_timestamp DateTime? @db.Timestamp(6)
+  subgraph_head_block    Int?
+  status                 String?   @db.VarChar
+  last_error             String?   @db.VarChar
+  measured_at            DateTime? @db.Timestamp(6)
+
+  @@index([status], map: "idx_sync_status_v2_health")
+  @@index([measured_at], map: "idx_sync_status_v2_measured")
+  @@index([pipeline, event_type], map: "idx_sync_status_v2_pipeline")
+  @@index([measured_at], map: "ix_pipeline_sync_status_v2_measured_at")
+}
+
+model subgraph_health_status {
+  id                   Int       @id @default(autoincrement())
+  synced               Boolean?
+  has_indexing_errors  Boolean?
+  chain_head_block     Int?
+  latest_indexed_block Int?
+  blocks_behind        Int?
+  status               String?   @db.VarChar
+  measured_at          DateTime? @db.Timestamp(6)
+
+  @@index([measured_at], map: "idx_subgraph_health_measured")
+  @@index([status], map: "idx_subgraph_health_status")
+  @@index([measured_at], map: "ix_subgraph_health_status_measured_at")
+}

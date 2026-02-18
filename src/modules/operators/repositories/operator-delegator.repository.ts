@@ -33,6 +33,15 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
         }
       }
 
+      // Build orderBy from sortBy param
+      const orderBy: any = {};
+      if (sortBy === "delegated_at") {
+        orderBy.delegated_at = sortOrder;
+      } else {
+        // Default sort by delegated_at desc for consistent pagination
+        orderBy.delegated_at = "desc";
+      }
+
       const delegators = await this.prisma.operator_delegators.findMany({
         where,
         include: {
@@ -50,64 +59,34 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
             },
           },
         },
+        orderBy,
+        skip: pagination.offset,
+        take: pagination.limit,
       });
 
-      // Map and Filter
-      let filtered = delegators
-        .map((d: any) => {
-          const shares = d.stakers.operator_delegator_shares || [];
-          const totalShares = shares.reduce(
-            (sum: number, s: any) => sum + Number(s.shares),
-            0,
-          );
-          const totalTVS = shares.reduce(
-            (sum: number, s: any) => sum + Number(s.tvs_usd || 0),
-            0,
-          );
+      // Map results with computed totals
+      return delegators.map((d: any) => {
+        const shares = d.stakers?.operator_delegator_shares || [];
+        const totalShares = shares.reduce(
+          (sum: number, s: any) => sum + Number(s.shares),
+          0,
+        );
+        const totalTVS = shares.reduce(
+          (sum: number, s: any) => sum + Number(s.tvs_usd || 0),
+          0,
+        );
 
-          return {
-            ...d,
-            shares: totalShares,
-            tvs: totalTVS,
-            strategies: shares.map((s: any) => ({
-              strategy: s.strategies,
-              shares: s.shares,
-              tvs: s.tvs_usd || 0,
-            })),
-          };
-        })
-        .filter((d: any) => {
-          if (filters.min_shares !== undefined && d.shares < filters.min_shares)
-            return false;
-          if (filters.max_shares !== undefined && d.shares > filters.max_shares)
-            return false;
-          return true;
-        });
-
-      // Sort
-      if (sortBy === "shares") {
-        filtered.sort((a: any, b: any) => {
-          return sortOrder === "asc"
-            ? a.shares - b.shares
-            : b.shares - a.shares;
-        });
-      } else if (sortBy === "tvs") {
-        filtered.sort((a: any, b: any) => {
-          return sortOrder === "asc" ? a.tvs - b.tvs : b.tvs - a.tvs;
-        });
-      } else if (sortBy === "delegated_at") {
-        filtered.sort((a: any, b: any) => {
-          const dateA = a.delegated_at ? new Date(a.delegated_at).getTime() : 0;
-          const dateB = b.delegated_at ? new Date(b.delegated_at).getTime() : 0;
-          return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
-        });
-      }
-
-      // Pagination
-      return filtered.slice(
-        pagination.offset,
-        pagination.offset + pagination.limit,
-      );
+        return {
+          ...d,
+          shares: totalShares,
+          tvs: totalTVS,
+          strategies: shares.map((s: any) => ({
+            strategy: s.strategies,
+            shares: s.shares,
+            tvs: s.tvs_usd || 0,
+          })),
+        };
+      });
     });
   }
 

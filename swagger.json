@@ -1,6 +1,146 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/auth/challenge": {
+      "post": {
+        "operationId": "AuthController_getChallenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Get challenge message for wallet signature",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "AuthController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySignatureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify signature and issue JWT tokens",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Refresh access token using refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Logout and revoke refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController_logoutAll",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Logout from all sessions",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_getCurrentUser",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user information",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/operators": {
       "get": {
         "description": "Primary endpoint for the operators listing/discovery page with flexible filtering and sorting",
@@ -2709,6 +2849,54 @@
       }
     },
     "schemas": {
+      "ChallengeRequestDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "VerifySignatureDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          },
+          "signature": {
+            "type": "string",
+            "description": "Signed message signature"
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Nonce from challenge response"
+          }
+        },
+        "required": [
+          "address",
+          "signature",
+          "nonce"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "description": "Refresh token"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
       "PICommissionDto": {
         "type": "object",
         "properties": {

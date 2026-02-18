@@ -2,7 +2,7 @@ import { BaseService } from "@/core/common/base.service";
 import { OperatorNotFoundException } from "@/shared/errors/app.exceptions";
 import { PaginationParams } from "@/shared/types/query.types";
 import { UserTier } from "@/shared/types/auth.types";
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ListOperatorStrategiesDto } from "./dto/list-operator-strategies.dto";
 import { ListOperatorsDto } from "./dto/list-operators.dto";
 import {
@@ -27,6 +27,7 @@ import {
   AVSRelationshipDetail,
   AVSRegistrationHistoryItem,
 } from "./entities/avs.entities";
+import { OperatorAllocationsOverview } from "./entities/allocation.entities";
 
 import { CacheService } from "@/core/cache/cache.service";
 
@@ -119,20 +120,21 @@ export class OperatorService extends BaseService<any> {
         operatorId,
       );
 
-    // Get delegator counts for each strategy
-    const strategiesWithCounts = await Promise.all(
-      strategies.map(async (strategy) => {
-        const delegatorCount =
-          await this.operatorStrategyRepository.countDelegatorsByStrategy(
-            operatorId,
-            strategy.strategy_id,
-          );
-        return this.operatorMapper.mapToStrategyListItem(
-          strategy,
-          delegatorCount,
-        );
-      }),
-    );
+    // Batch fetch delegator counts for all strategies in one query
+    const strategyIds = strategies.map((s) => s.strategy_id);
+    const delegatorCounts =
+      await this.operatorStrategyRepository.countDelegatorsByStrategies(
+        operatorId,
+        strategyIds,
+      );
+
+    const strategiesWithCounts = strategies.map((strategy) => {
+      const delegatorCount = delegatorCounts.get(strategy.strategy_id) || 0;
+      return this.operatorMapper.mapToStrategyListItem(
+        strategy,
+        delegatorCount,
+      );
+    });
 
     // Apply filters
     let filtered = strategiesWithCounts;
@@ -197,15 +199,14 @@ export class OperatorService extends BaseService<any> {
         total_strategies: strategies.length,
         distribution: strategies.map((s) => ({
           strategy_address: s.strategy_address,
-          token_symbol: s.token?.symbol,
-          tvs_percentage: s.tvs_percentage,
+          token_symbol: s.strategy_symbol,
+          tvs_percentage: s.utilization_rate,
         })),
         strategies: null,
         tier_context: {
           user_tier: "free",
           gated_fields: ["strategies"],
-          upgrade_message:
-            "Unlock full strategy details with EigenWatch Pro",
+          upgrade_message: "Unlock full strategy details with EigenWatch Pro",
         },
       };
     }
@@ -307,45 +308,57 @@ export class OperatorService extends BaseService<any> {
     sortBy?: string,
     tier: UserTier = "FREE",
   ): Promise<any> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
-    }
+    const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
+    const cached =
+      await this.cacheService.get<AVSRelationshipListItem[]>(cacheKey);
 
-    const relationships =
-      await this.operatorAVSRepository.findOperatorAVSRelationships(
-        operatorId,
-        status,
+    let mapped: AVSRelationshipListItem[];
+
+    if (cached) {
+      mapped = cached;
+    } else {
+      // Verify operator exists
+      const operator = await this.operatorRepository.findById(operatorId);
+      if (!operator) {
+        throw new OperatorNotFoundException(operatorId);
+      }
+
+      const relationships =
+        await this.operatorAVSRepository.findOperatorAVSRelationships(
+          operatorId,
+          status,
+        );
+
+      mapped = relationships.map((rel) =>
+        this.operatorMapper.mapToAVSRelationshipListItem(rel),
       );
 
-    const mapped = relationships.map((rel) =>
-      this.operatorMapper.mapToAVSRelationshipListItem(rel),
-    );
+      // Apply sorting
+      switch (sortBy) {
+        case "operator_set_count":
+          mapped.sort(
+            (a, b) => b.active_operator_set_count - a.active_operator_set_count,
+          );
+          break;
+        case "registration_cycles":
+          mapped.sort(
+            (a, b) => b.total_registration_cycles - a.total_registration_cycles,
+          );
+          break;
+        case "days_registered":
+        default:
+          mapped.sort(
+            (a, b) => b.total_days_registered - a.total_days_registered,
+          );
+      }
 
-    // Apply sorting
-    switch (sortBy) {
-      case "operator_set_count":
-        mapped.sort(
-          (a, b) => b.active_operator_set_count - a.active_operator_set_count,
-        );
-        break;
-      case "registration_cycles":
-        mapped.sort(
-          (a, b) => b.total_registration_cycles - a.total_registration_cycles,
-        );
-        break;
-      case "days_registered":
-      default:
-        mapped.sort(
-          (a, b) => b.total_days_registered - a.total_days_registered,
-        );
+      await this.cacheService.set(cacheKey, mapped, 300); // 5 minutes TTL
     }
 
     if (tier === "FREE") {
       return {
         total_avs: mapped.length,
-        active_avs: mapped.filter((r) => r.current_status === "REGISTERED")
+        active_avs: mapped.filter((r) => r.current_status === "registered")
           .length,
         avs_relationships: null,
         tier_context: {
@@ -358,7 +371,7 @@ export class OperatorService extends BaseService<any> {
 
     return {
       total_avs: mapped.length,
-      active_avs: mapped.filter((r) => r.current_status === "REGISTERED")
+      active_avs: mapped.filter((r) => r.current_status === "registered")
         .length,
       avs_relationships: mapped,
       tier_context: {
@@ -428,6 +441,33 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     tier: UserTier = "FREE",
   ): Promise<any> {
+    const cacheKey = `operators:commission:${operatorId}`;
+    const cached = await this.cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      if (tier === "FREE") {
+        return {
+          current_rate: cached.pi_commission?.current_bips,
+          positioning: cached.pi_commission?.total_changes,
+          detailed_commissions: null,
+          behavioral_insights: null,
+          tier_context: {
+            user_tier: "free",
+            gated_fields: ["detailed_commissions", "behavioral_insights"],
+            upgrade_message:
+              "Unlock full commission analysis with EigenWatch Pro",
+          },
+        };
+      }
+      return {
+        ...cached,
+        tier_context: {
+          user_tier: tier.toLowerCase(),
+          gated_fields: [],
+        },
+      };
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -445,10 +485,12 @@ export class OperatorService extends BaseService<any> {
       allocations: allocationsData.allocations,
     });
 
+    await this.cacheService.set(cacheKey, overview, 300); // 5 minutes TTL
+
     if (tier === "FREE") {
       return {
-        current_rate: overview.pi_commission?.current_rate_bips,
-        positioning: overview.pi_commission?.network_positioning,
+        current_rate: overview.pi_commission?.current_bips,
+        positioning: overview.pi_commission?.total_changes,
         detailed_commissions: null,
         behavioral_insights: null,
         tier_context: {
@@ -524,6 +566,7 @@ export class OperatorService extends BaseService<any> {
     const cached = await this.cacheService.get<{
       delegators: any[];
       summary: any;
+      tier_context: any;
     }>(cacheKey);
 
     if (cached) {
@@ -635,7 +678,10 @@ export class OperatorService extends BaseService<any> {
 
     // Fetch delegator data, allocations, and strategy state in parallel
     const [delegator, allocationsData, operatorMetadata] = await Promise.all([
-      this.operatorDelegatorRepository.findDelegatorDetail(operatorId, stakerId),
+      this.operatorDelegatorRepository.findDelegatorDetail(
+        operatorId,
+        stakerId,
+      ),
       this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
       this.operatorRepository.findById(operatorId),
     ]);
@@ -707,32 +753,41 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     tier: UserTier = "FREE",
   ): Promise<any> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
-    }
+    const cacheKey = `operators:allocations-overview:${operatorId}`;
+    const cached =
+      await this.cacheService.get<OperatorAllocationsOverview>(cacheKey);
 
-    // Get comprehensive allocation data
-    const data =
-      await this.operatorAllocationRepository.findAllocationsOverviewData(
-        operatorId,
-      );
+    const overview =
+      cached ??
+      (await (async () => {
+        // Verify operator exists
+        const operator = await this.operatorRepository.findById(operatorId);
+        if (!operator) {
+          throw new OperatorNotFoundException(operatorId);
+        }
 
-    const overview = this.operatorMapper.mapToAllocationsOverview(data);
+        // Get comprehensive allocation data
+        const data =
+          await this.operatorAllocationRepository.findAllocationsOverviewData(
+            operatorId,
+          );
+
+        const result = await this.operatorMapper.mapToAllocationsOverview(data);
+        await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+        return result;
+      })());
 
     if (tier === "FREE") {
       return {
-        total_allocations: overview.summary?.total_allocations,
-        total_magnitude_usd: overview.summary?.total_magnitude_usd,
-        utilization_badges: overview.summary?.utilization_label,
+        total_allocations: overview.summary?.total_allocation_count,
+        total_magnitude_usd: overview.summary?.total_allocated_usd,
+        utilization_badges: overview.summary?.overall_utilization_pct,
         detailed_allocations: null,
         avs_breakdown: null,
         tier_context: {
           user_tier: "free",
           gated_fields: ["detailed_allocations", "avs_breakdown"],
-          upgrade_message:
-            "Unlock full allocation data with EigenWatch Pro",
+          upgrade_message: "Unlock full allocation data with EigenWatch Pro",
         },
       };
     }
