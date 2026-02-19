@@ -123,6 +123,13 @@ export class AuthService {
       wallet_address: user.wallet_address,
       tier: (user.tier as string).toLowerCase() as UserTier,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
+      emails: user.emails?.map((e) => ({
+        id: e.id,
+        email: e.email,
+        is_verified: e.is_verified,
+        is_primary: e.is_primary,
+        created_at: e.created_at,
+      })),
     };
 
     this.logger.log(
@@ -172,6 +179,13 @@ export class AuthService {
       wallet_address: user.wallet_address,
       tier: (user.tier as string).toLowerCase() as UserTier,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
+      emails: user.emails?.map((e) => ({
+        id: e.id,
+        email: e.email,
+        is_verified: e.is_verified,
+        is_primary: e.is_primary,
+        created_at: e.created_at,
+      })),
     };
 
     return { tokens, user: authUser };

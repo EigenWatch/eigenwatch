@@ -2,7 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
+  Put,
   Body,
+  Param,
   Req,
   Res,
   HttpCode,
@@ -13,19 +16,29 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Request, Response } from "express";
 import { CurrentUser } from "src/core/decorators/current-user.decorator";
 import { Public } from "src/core/decorators/public.decorator";
+import { RequireAuth } from "src/core/decorators/require-auth.decorator";
 import { SkipApiKey } from "src/core/decorators/skip-api-key.decorator";
 import { AuthService } from "./auth.service";
+import { EmailService } from "./email.service";
 import {
   ChallengeRequestDto,
   VerifySignatureDto,
   RefreshTokenDto,
 } from "./dto/auth.dto";
+import {
+  AddEmailDto,
+  VerifyEmailDto,
+  ResendVerificationDto,
+} from "./dto/email.dto";
 import { AuthUser } from "src/shared/types/auth.types";
 
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private emailService: EmailService,
+  ) {}
 
   @Post("challenge")
   @Public()
@@ -144,5 +157,67 @@ export class AuthController {
   @ApiOperation({ summary: "Get current user information" })
   async getCurrentUser(@CurrentUser() user: AuthUser) {
     return user;
+  }
+
+  // ==================== EMAIL ====================
+
+  @Post("email/add")
+  @RequireAuth()
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Add an email address and send verification code" })
+  async addEmail(@CurrentUser() user: AuthUser, @Body() body: AddEmailDto) {
+    return this.emailService.addEmail(user.id, body.email, {
+      risk_alerts: body.risk_alerts,
+      marketing: body.marketing,
+    });
+  }
+
+  @Post("email/verify")
+  @RequireAuth()
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Verify an email with a 6-digit code" })
+  async verifyEmailAddress(
+    @CurrentUser() user: AuthUser,
+    @Body() body: VerifyEmailDto,
+  ) {
+    return this.emailService.verifyEmail(user.id, body.email, body.code);
+  }
+
+  @Post("email/resend")
+  @RequireAuth()
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Resend email verification code" })
+  async resendVerification(
+    @CurrentUser() user: AuthUser,
+    @Body() body: ResendVerificationDto,
+  ) {
+    return this.emailService.resendVerification(user.id, body.email);
+  }
+
+  @Delete("email/:id")
+  @RequireAuth()
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Remove an email address" })
+  async removeEmail(
+    @CurrentUser() user: AuthUser,
+    @Param("id") emailId: string,
+  ) {
+    await this.emailService.removeEmail(user.id, emailId);
+  }
+
+  @Put("email/:id/primary")
+  @RequireAuth()
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Set an email as primary" })
+  async setPrimaryEmail(
+    @CurrentUser() user: AuthUser,
+    @Param("id") emailId: string,
+  ) {
+    await this.emailService.setPrimaryEmail(user.id, emailId);
   }
 }

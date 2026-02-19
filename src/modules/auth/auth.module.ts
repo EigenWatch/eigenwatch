@@ -4,11 +4,13 @@ import { PassportModule } from "@nestjs/passport";
 import { AppConfigService } from "src/core/config/config.service";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { EmailService } from "./email.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { SignatureVerificationService } from "./signature-verification.service";
 import { UserRepository } from "./repositories/user.repository";
 import { SessionRepository } from "./repositories/session.repository";
 import { NonceRepository } from "./repositories/nonce.repository";
+import { EmailRepository } from "./repositories/email.repository";
 
 @Module({
   imports: [
@@ -24,11 +26,13 @@ import { NonceRepository } from "./repositories/nonce.repository";
   controllers: [AuthController],
   providers: [
     AuthService,
+    EmailService,
     SignatureVerificationService,
     JwtStrategy,
     UserRepository,
     SessionRepository,
     NonceRepository,
+    EmailRepository,
   ],
   exports: [AuthService, UserRepository],
 })

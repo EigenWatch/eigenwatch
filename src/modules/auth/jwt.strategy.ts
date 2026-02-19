@@ -29,6 +29,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       wallet_address: user.wallet_address,
       tier: user.tier as AuthUser["tier"],
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
+      emails: user.emails?.map((e) => ({
+        id: e.id,
+        email: e.email,
+        is_verified: e.is_verified,
+        is_primary: e.is_primary,
+        created_at: e.created_at,
+      })),
     };
   }
 }
