@@ -12,8 +12,11 @@ export const env = cleanEnv(process.env, {
   }),
   PORT: num({ default: 3000 }),
 
-  DATABASE_URL: url(),
-  DATABASE_POOL_SIZE: num({ default: 10 }),
+  ANALYTICS_DATABASE_URL: url(),
+  ANALYTICS_DATABASE_POOL_SIZE: num({ default: 10 }),
+
+  USER_DATABASE_URL: url(),
+  USER_DATABASE_POOL_SIZE: num({ default: 5 }),
 
   REDIS_URL: url(),
   REDIS_TTL_DEFAULT: num({ default: 300 }),

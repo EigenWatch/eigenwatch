@@ -6,7 +6,7 @@ import { DatabaseHealthService } from "src/core/database/database.health";
 export class HealthService {
   constructor(
     private databaseHealth: DatabaseHealthService,
-    private cache: CacheService
+    private cache: CacheService,
   ) {}
 
   async check() {
@@ -16,7 +16,9 @@ export class HealthService {
     ]);
 
     const isHealthy =
-      database.status === "healthy" && redis.status === "healthy";
+      database.analytics_db.status === "healthy" &&
+      database.user_db.status === "healthy" &&
+      redis.status === "healthy";
 
     return {
       status: isHealthy ? "healthy" : "unhealthy",

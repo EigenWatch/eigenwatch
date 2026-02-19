@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { BaseRepository } from "@/core/common/base.repository";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 
 @Injectable()
 export class OperatorAVSRepository extends BaseRepository<any> {
-  constructor(protected readonly prisma: PrismaService) {
+  constructor(protected readonly prisma: PrismaAnalyticsService) {
     super(prisma);
   }
 
@@ -52,35 +52,23 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     avsId: string,
   ): Promise<any[]> {
     return this.execute(async () => {
-      // Get all operator sets for this AVS
+      // Single query: get operator sets with their allocations in one round trip
       const operatorSets = await this.prisma.operator_sets.findMany({
         where: { avs_id: avsId },
+        include: {
+          operator_allocations: {
+            where: { operator_id: operatorId },
+            include: { strategies: true },
+            orderBy: { allocated_at: "desc" },
+          },
+        },
       });
 
-      // Get allocations for each operator set
-      const setsWithAllocations = await Promise.all(
-        operatorSets.map(async (set) => {
-          const allocations = await this.prisma.operator_allocations.findMany({
-            where: {
-              operator_id: operatorId,
-              operator_set_id: set.id, // Use UUID
-            },
-            include: {
-              strategies: true,
-            },
-            orderBy: { allocated_at: "desc" },
-            take: 1, // Get latest allocation
-          });
-
-          return {
-            ...set,
-            latest_allocation: allocations[0] || null,
-            allocations: allocations, // Mapper might expect 'allocations' array
-          };
-        }),
-      );
-
-      return setsWithAllocations;
+      return operatorSets.map((set) => ({
+        ...set,
+        latest_allocation: set.operator_allocations[0] || null,
+        allocations: set.operator_allocations,
+      }));
     });
   }
 

@@ -1,7 +1,8 @@
 import { BaseService } from "@/core/common/base.service";
 import { OperatorNotFoundException } from "@/shared/errors/app.exceptions";
 import { PaginationParams } from "@/shared/types/query.types";
-import { Injectable, Inject } from "@nestjs/common";
+import { UserTier } from "@/shared/types/auth.types";
+import { Injectable } from "@nestjs/common";
 import { ListOperatorStrategiesDto } from "./dto/list-operator-strategies.dto";
 import { ListOperatorsDto } from "./dto/list-operators.dto";
 import {
@@ -26,6 +27,8 @@ import {
   AVSRelationshipDetail,
   AVSRegistrationHistoryItem,
 } from "./entities/avs.entities";
+import { OperatorAllocationsOverview } from "./entities/allocation.entities";
+import { PaginationHelper } from "@/core/common/pagination.helper";
 
 import { CacheService } from "@/core/cache/cache.service";
 
@@ -97,13 +100,21 @@ export class OperatorService extends BaseService<any> {
   async findOperatorStrategies(
     operatorId: string,
     filters: ListOperatorStrategiesDto,
-  ): Promise<OperatorStrategyListItem[]> {
+    tier: UserTier = "free",
+  ): Promise<any> {
     const cacheKey = `operators:strategies:${operatorId}:${JSON.stringify(filters)}`;
-    const cached =
-      await this.cacheService.get<OperatorStrategyListItem[]>(cacheKey);
+    const cached = await this.cacheService.get<{
+      strategies: OperatorStrategyListItem[];
+      total: number;
+    }>(cacheKey);
 
     if (cached) {
-      return cached;
+      return this.wrapStrategiesResponse(
+        cached.strategies,
+        cached.total,
+        { limit: filters.limit || 50, offset: filters.offset || 0 },
+        tier,
+      );
     }
 
     // Verify operator exists
@@ -117,20 +128,21 @@ export class OperatorService extends BaseService<any> {
         operatorId,
       );
 
-    // Get delegator counts for each strategy
-    const strategiesWithCounts = await Promise.all(
-      strategies.map(async (strategy) => {
-        const delegatorCount =
-          await this.operatorStrategyRepository.countDelegatorsByStrategy(
-            operatorId,
-            strategy.strategy_id,
-          );
-        return this.operatorMapper.mapToStrategyListItem(
-          strategy,
-          delegatorCount,
-        );
-      }),
-    );
+    // Batch fetch delegator counts for all strategies in one query
+    const strategyIds = strategies.map((s) => s.strategy_id);
+    const delegatorCounts =
+      await this.operatorStrategyRepository.countDelegatorsByStrategies(
+        operatorId,
+        strategyIds,
+      );
+
+    const strategiesWithCounts = strategies.map((strategy) => {
+      const delegatorCount = delegatorCounts.get(strategy.strategy_id) || 0;
+      return this.operatorMapper.mapToStrategyListItem(
+        strategy,
+        delegatorCount,
+      );
+    });
 
     // Apply filters
     let filtered = strategiesWithCounts;
@@ -181,9 +193,56 @@ export class OperatorService extends BaseService<any> {
         );
     }
 
-    await this.cacheService.set(cacheKey, filtered, 300); // 5 minutes TTL
+    const total = filtered.length;
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    const sliced = filtered.slice(offset, offset + limit);
 
-    return filtered;
+    await this.cacheService.set(cacheKey, { strategies: sliced, total }, 300); // 5 minutes TTL
+
+    return this.wrapStrategiesResponse(sliced, total, { limit, offset }, tier);
+  }
+
+  private wrapStrategiesResponse(
+    strategies: OperatorStrategyListItem[],
+    total: number,
+    pagination: { limit: number; offset: number },
+    tier: UserTier,
+  ) {
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      pagination.limit,
+      pagination.offset,
+    );
+
+    if (tier === "free") {
+      return {
+        total_strategies: total,
+        pagination: paginationMeta,
+        distribution: strategies.map((s) => ({
+          strategy_address: s.strategy_address,
+          token_symbol: s.strategy_symbol,
+          tvs_percentage: s.utilization_rate,
+        })),
+        strategies: null,
+        tier_context: {
+          user_tier: "free",
+          gated_fields: ["strategies"],
+          upgrade_message: "Unlock full strategy details with EigenWatch Pro",
+        },
+      };
+    }
+
+    return {
+      total_strategies: total,
+      pagination: paginationMeta,
+      distribution: null,
+      strategies,
+      tier_context: {
+        user_tier: tier.toLowerCase(),
+        gated_fields: [],
+      },
+    };
   }
 
   async getStrategyDetail(
@@ -270,43 +329,79 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     status?: string,
     sortBy?: string,
-  ): Promise<AVSRelationshipListItem[]> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
-    }
+    tier: UserTier = "free",
+  ): Promise<any> {
+    const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
+    const cached =
+      await this.cacheService.get<AVSRelationshipListItem[]>(cacheKey);
 
-    const relationships =
-      await this.operatorAVSRepository.findOperatorAVSRelationships(
-        operatorId,
-        status,
+    let mapped: AVSRelationshipListItem[];
+
+    if (cached) {
+      mapped = cached;
+    } else {
+      // Verify operator exists
+      const operator = await this.operatorRepository.findById(operatorId);
+      if (!operator) {
+        throw new OperatorNotFoundException(operatorId);
+      }
+
+      const relationships =
+        await this.operatorAVSRepository.findOperatorAVSRelationships(
+          operatorId,
+          status,
+        );
+
+      mapped = relationships.map((rel) =>
+        this.operatorMapper.mapToAVSRelationshipListItem(rel),
       );
 
-    const mapped = relationships.map((rel) =>
-      this.operatorMapper.mapToAVSRelationshipListItem(rel),
-    );
+      // Apply sorting
+      switch (sortBy) {
+        case "operator_set_count":
+          mapped.sort(
+            (a, b) => b.active_operator_set_count - a.active_operator_set_count,
+          );
+          break;
+        case "registration_cycles":
+          mapped.sort(
+            (a, b) => b.total_registration_cycles - a.total_registration_cycles,
+          );
+          break;
+        case "days_registered":
+        default:
+          mapped.sort(
+            (a, b) => b.total_days_registered - a.total_days_registered,
+          );
+      }
 
-    // Apply sorting
-    switch (sortBy) {
-      case "operator_set_count":
-        mapped.sort(
-          (a, b) => b.active_operator_set_count - a.active_operator_set_count,
-        );
-        break;
-      case "registration_cycles":
-        mapped.sort(
-          (a, b) => b.total_registration_cycles - a.total_registration_cycles,
-        );
-        break;
-      case "days_registered":
-      default:
-        mapped.sort(
-          (a, b) => b.total_days_registered - a.total_days_registered,
-        );
+      await this.cacheService.set(cacheKey, mapped, 300); // 5 minutes TTL
     }
 
-    return mapped;
+    if (tier === "free") {
+      return {
+        total_avs: mapped.length,
+        active_avs: mapped.filter((r) => r.current_status === "registered")
+          .length,
+        avs_relationships: null,
+        tier_context: {
+          user_tier: "free",
+          gated_fields: ["avs_relationships"],
+          upgrade_message: "Unlock full AVS data with EigenWatch Pro",
+        },
+      };
+    }
+
+    return {
+      total_avs: mapped.length,
+      active_avs: mapped.filter((r) => r.current_status === "registered")
+        .length,
+      avs_relationships: mapped,
+      tier_context: {
+        user_tier: tier.toLowerCase(),
+        gated_fields: [],
+      },
+    };
   }
 
   async getOperatorAVSDetail(
@@ -365,7 +460,37 @@ export class OperatorService extends BaseService<any> {
   // COMMISSION METHODS (Endpoints 10-11)
   // ============================================================================
 
-  async getCommissionOverview(operatorId: string): Promise<any> {
+  async getCommissionOverview(
+    operatorId: string,
+    tier: UserTier = "free",
+  ): Promise<any> {
+    const cacheKey = `operators:commission:${operatorId}`;
+    const cached = await this.cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      if (tier === "free") {
+        return {
+          current_rate: cached.pi_commission?.current_bips,
+          positioning: cached.pi_commission?.total_changes,
+          detailed_commissions: null,
+          behavioral_insights: null,
+          tier_context: {
+            user_tier: "free",
+            gated_fields: ["detailed_commissions", "behavioral_insights"],
+            upgrade_message:
+              "Unlock full commission analysis with EigenWatch Pro",
+          },
+        };
+      }
+      return {
+        ...cached,
+        tier_context: {
+          user_tier: tier.toLowerCase(),
+          gated_fields: [],
+        },
+      };
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -378,11 +503,35 @@ export class OperatorService extends BaseService<any> {
       this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
     ]);
 
-    // Add allocations to commission data for impact analysis calculation
-    return this.operatorMapper.mapToCommissionOverview({
+    const overview = this.operatorMapper.mapToCommissionOverview({
       ...commissions,
       allocations: allocationsData.allocations,
     });
+
+    await this.cacheService.set(cacheKey, overview, 300); // 5 minutes TTL
+
+    if (tier === "free") {
+      return {
+        current_rate: overview.pi_commission?.current_bips,
+        positioning: overview.pi_commission?.total_changes,
+        detailed_commissions: null,
+        behavioral_insights: null,
+        tier_context: {
+          user_tier: "free",
+          gated_fields: ["detailed_commissions", "behavioral_insights"],
+          upgrade_message:
+            "Unlock full commission analysis with EigenWatch Pro",
+        },
+      };
+    }
+
+    return {
+      ...overview,
+      tier_context: {
+        user_tier: tier.toLowerCase(),
+        gated_fields: [],
+      },
+    };
   }
 
   async getCommissionHistory(
@@ -434,11 +583,13 @@ export class OperatorService extends BaseService<any> {
     pagination: { limit: number; offset: number },
     sortBy: string = "tvs",
     sortOrder: "asc" | "desc" = "desc",
-  ): Promise<{ delegators: any[]; summary: any }> {
+    tier: UserTier = "free",
+  ): Promise<{ delegators: any[]; summary: any; tier_context: any }> {
     const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
     const cached = await this.cacheService.get<{
       delegators: any[];
       summary: any;
+      tier_context: any;
     }>(cacheKey);
 
     if (cached) {
@@ -488,9 +639,27 @@ export class OperatorService extends BaseService<any> {
       }),
     );
 
+    if (tier === "free") {
+      const result = {
+        delegators: [],
+        summary,
+        tier_context: {
+          user_tier: "free",
+          gated_fields: ["delegators"],
+          upgrade_message:
+            "Unlock individual delegator data with EigenWatch Pro",
+        },
+      };
+      return result;
+    }
+
     const result = {
       delegators: mapped,
       summary,
+      tier_context: {
+        user_tier: tier.toLowerCase(),
+        gated_fields: [],
+      },
     };
 
     await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
@@ -532,7 +701,10 @@ export class OperatorService extends BaseService<any> {
 
     // Fetch delegator data, allocations, and strategy state in parallel
     const [delegator, allocationsData, operatorMetadata] = await Promise.all([
-      this.operatorDelegatorRepository.findDelegatorDetail(operatorId, stakerId),
+      this.operatorDelegatorRepository.findDelegatorDetail(
+        operatorId,
+        stakerId,
+      ),
       this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
       this.operatorRepository.findById(operatorId),
     ]);
@@ -600,20 +772,56 @@ export class OperatorService extends BaseService<any> {
   // ALLOCATION METHODS (Endpoints 15-16)
   // ============================================================================
 
-  async getAllocationsOverview(operatorId: string): Promise<any> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
+  async getAllocationsOverview(
+    operatorId: string,
+    tier: UserTier = "free",
+  ): Promise<any> {
+    const cacheKey = `operators:allocations-overview:${operatorId}`;
+    const cached =
+      await this.cacheService.get<OperatorAllocationsOverview>(cacheKey);
+
+    const overview =
+      cached ??
+      (await (async () => {
+        // Verify operator exists
+        const operator = await this.operatorRepository.findById(operatorId);
+        if (!operator) {
+          throw new OperatorNotFoundException(operatorId);
+        }
+
+        // Get comprehensive allocation data
+        const data =
+          await this.operatorAllocationRepository.findAllocationsOverviewData(
+            operatorId,
+          );
+
+        const result = await this.operatorMapper.mapToAllocationsOverview(data);
+        await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+        return result;
+      })());
+
+    if (tier === "free") {
+      return {
+        total_allocations: overview.summary?.total_allocation_count,
+        total_magnitude_usd: overview.summary?.total_allocated_usd,
+        utilization_badges: overview.summary?.overall_utilization_pct,
+        detailed_allocations: null,
+        avs_breakdown: null,
+        tier_context: {
+          user_tier: "free",
+          gated_fields: ["detailed_allocations", "avs_breakdown"],
+          upgrade_message: "Unlock full allocation data with EigenWatch Pro",
+        },
+      };
     }
 
-    // Get comprehensive allocation data
-    const data =
-      await this.operatorAllocationRepository.findAllocationsOverviewData(
-        operatorId,
-      );
-
-    return this.operatorMapper.mapToAllocationsOverview(data);
+    return {
+      ...overview,
+      tier_context: {
+        user_tier: tier.toLowerCase(),
+        gated_fields: [],
+      },
+    };
   }
 
   async listDetailedAllocations(

@@ -16,7 +16,12 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "prisma:generate": "prisma generate --schema=prisma/analytics/schema.prisma && prisma generate --schema=prisma/user/schema.prisma",
+    "prisma:generate:analytics": "prisma generate --schema=prisma/analytics/schema.prisma",
+    "prisma:generate:user": "prisma generate --schema=prisma/user/schema.prisma",
+    "prisma:pull:analytics": "prisma db pull --schema=prisma/analytics/schema.prisma",
+    "prisma:migrate:user": "prisma migrate dev --schema=prisma/user/schema.prisma --config=prisma.user.config.ts"
   },
   "engines": {
     "npm": ">=10.0.0",
@@ -32,9 +37,11 @@
     "@nestjs/swagger": "^11.2.3",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "axios": "^1.13.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "cookie-parser": "^1.4.7",
     "envalid": "^8.1.1",
     "ethers": "^6.15.0",
     "jsonwebtoken": "^9.0.2",

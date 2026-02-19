@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import { CacheService } from "@/core/cache/cache.service";
 
 export interface TokenMetadata {
@@ -24,7 +24,7 @@ export class TokenMetadataService {
   private readonly CACHE_TTL = 3600; // 1 hour
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaAnalyticsService,
     private readonly cacheService: CacheService,
   ) {}
 

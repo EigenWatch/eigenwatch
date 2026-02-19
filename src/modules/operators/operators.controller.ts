@@ -22,6 +22,8 @@ import { PaginationHelper } from "@/core/common/pagination.helper";
 import { ResponseHelper } from "@/core/responses/response.helper";
 import { OperatorService } from "./operators.service";
 import { Public } from "@/core/decorators/public.decorator";
+import { CurrentUser } from "@/core/decorators/current-user.decorator";
+import { TierGated } from "@/core/decorators/tier-gated.decorator";
 import { FindOperatorsQueryDto } from "./dto/index.dto";
 import { GetActivityDto } from "./dto/activity.dto";
 import { ListOperatorAVSDto } from "./dto/avs.dto";
@@ -52,6 +54,7 @@ import {
   GetAVSTimelineDto,
   GetAllocationHistoryDto,
 } from "./dto/time-series.dto";
+import { AuthUser, UserTier } from "@/shared/types/auth.types";
 
 @ApiTags("Operators")
 @Controller("operators")
@@ -217,13 +220,16 @@ export class OperatorsController extends BaseController<any> {
   async getStrategies(
     @Param("id") id: string,
     @Query() filters: ListOperatorStrategiesDto,
+    @CurrentUser() user: AuthUser | null,
   ) {
+    const tier: UserTier = user?.tier ?? "free";
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
       filters,
+      tier,
     );
     return ResponseHelper.ok(
-      { strategies },
+      strategies,
       "Operator strategies retrieved successfully",
     );
   }
@@ -276,16 +282,19 @@ export class OperatorsController extends BaseController<any> {
   async getAVSRegistrations(
     @Param("id") id: string,
     @Query() query: ListOperatorAVSDto,
+    @CurrentUser() user: AuthUser | null,
   ) {
+    const tier: UserTier = user?.tier ?? "free";
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
         query.status,
         query.sort_by,
+        tier,
       );
 
     return ResponseHelper.ok(
-      { avs_relationships: relationships },
+      relationships,
       "AVS registrations retrieved successfully",
     );
   }
@@ -371,8 +380,12 @@ export class OperatorsController extends BaseController<any> {
     status: HttpStatus.NOT_FOUND,
     description: "Operator not found",
   })
-  async getCommissionOverview(@Param("id") id: string) {
-    const overview = await this.operatorService.getCommissionOverview(id);
+  async getCommissionOverview(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser | null,
+  ) {
+    const tier: UserTier = user?.tier ?? "free";
+    const overview = await this.operatorService.getCommissionOverview(id, tier);
     return ResponseHelper.ok(
       overview,
       "Commission overview retrieved successfully",
@@ -383,7 +396,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 11: Get Commission History
    */
   @Get(":id/commission/history")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get commission history",
@@ -437,7 +450,9 @@ export class OperatorsController extends BaseController<any> {
   async listDelegators(
     @Param("id") id: string,
     @Query() query: ListDelegatorsDto,
+    @CurrentUser() user: AuthUser | null,
   ) {
+    const tier: UserTier = user?.tier ?? "free";
     const paginationParams = this.handlePagination(query);
 
     const result = await this.operatorService.listDelegators(
@@ -450,10 +465,9 @@ export class OperatorsController extends BaseController<any> {
       paginationParams,
       query.sort_by,
       query.sort_order,
+      tier,
     );
 
-    // TODO: Investigate this
-    // We don't have accurate total count due to filtering, so we'll use delegators length
     const paginationMeta = PaginationHelper.buildMeta(
       result.summary.total_delegators,
       paginationParams.limit,
@@ -465,6 +479,7 @@ export class OperatorsController extends BaseController<any> {
         delegators: result.delegators,
         summary: result.summary,
         pagination: paginationMeta,
+        tier_context: result.tier_context,
       },
       "Delegators retrieved successfully",
     );
@@ -607,8 +622,12 @@ export class OperatorsController extends BaseController<any> {
     status: HttpStatus.NOT_FOUND,
     description: "Operator not found",
   })
-  async getAllocationsOverview(@Param("id") id: string) {
-    const overview = await this.operatorService.getAllocationsOverview(id);
+  async getAllocationsOverview(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser | null,
+  ) {
+    const tier: UserTier = user?.tier ?? "free";
+    const overview = await this.operatorService.getAllocationsOverview(id, tier);
     return ResponseHelper.ok(
       overview,
       "Allocations overview retrieved successfully",
@@ -676,7 +695,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 17: Get Operator Risk Assessment
    */
   @Get(":id/risk")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator risk assessment",
@@ -710,7 +729,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 18: Get Concentration Metrics
    */
   @Get(":id/concentration")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get concentration metrics",
@@ -745,7 +764,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 19: Get Volatility Metrics
    */
   @Get(":id/volatility")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get volatility metrics",
@@ -995,7 +1014,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 26: Compare Operators
    */
   @Post("compare")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operators",
@@ -1019,7 +1038,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 27: Get Operator Percentile Rankings
    */
   @Get(":id/rankings")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator percentile rankings",
@@ -1050,7 +1069,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 28: Compare Operator to Network Averages
    */
   @Get(":id/vs-network")
-  @Public()
+  @TierGated("pro")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operator to network averages",

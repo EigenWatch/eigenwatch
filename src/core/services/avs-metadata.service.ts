@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import { CacheService } from "@/core/cache/cache.service";
 import axios from "axios";
 
@@ -40,7 +40,7 @@ export class AVSMetadataService {
   private readonly FETCH_TIMEOUT = 10000; // 10 seconds
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaAnalyticsService,
     private readonly cacheService: CacheService,
   ) {}
 

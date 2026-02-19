@@ -13,7 +13,8 @@ import { PrismaExceptionFilter } from "./core/filters/prisma-exception.filter";
 import { ApiKeyGuard } from "./core/guards/api-key.guard";
 import { JwtAuthGuard } from "./core/guards/jwt-auth.guard";
 import { RolesGuard } from "./core/guards/roles.guard";
-// import { AuthModule } from "./modules/auth/auth.module";
+import { TierGuard } from "./core/guards/tier.guard";
+import { AuthModule } from "./modules/auth/auth.module";
 import { OperatorsModule } from "./modules/operators/operators.module";
 import { HealthModule } from "./modules/health/health.module";
 // import { AVSModule } from "./modules/avs/avs.module";
@@ -21,6 +22,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { SearchModule } from "./modules/search/search.module";
 import { NetworkModule } from "./modules/network/network.module";
 import { StrategiesModule } from "./modules/strategies/strategies.module";
+import { UserModule } from "./modules/user/user.module";
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     LoggerModule,
     PrismaModule,
     CacheModule,
-    // AuthModule,
+    AuthModule,
     OperatorsModule,
     // AVSModule,
     // AnalyticsModule,
@@ -36,6 +38,7 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     NetworkModule,
     StrategiesModule,
     HealthModule,
+    UserModule,
   ],
   providers: [
     {
@@ -69,6 +72,10 @@ import { StrategiesModule } from "./modules/strategies/strategies.module";
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TierGuard,
     },
   ],
 })

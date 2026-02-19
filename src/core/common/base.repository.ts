@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PrismaService } from "../database/prisma.service";
+import { PrismaAnalyticsService } from "../database/prisma-analytics.service";
 
 export abstract class BaseRepository<T> {
-  constructor(protected prisma: PrismaService) {}
+  constructor(protected prisma: PrismaAnalyticsService) {}
 
   protected buildPagination(
     limit: number,

@@ -1,6 +1,294 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/auth/challenge": {
+      "post": {
+        "operationId": "AuthController_getChallenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Get challenge message for wallet signature",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "AuthController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySignatureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify signature and issue JWT tokens",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Refresh access token using refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Logout and revoke refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController_logoutAll",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Logout from all sessions",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_getCurrentUser",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user information",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/add": {
+      "post": {
+        "operationId": "AuthController_addEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add an email address and send verification code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/verify": {
+      "post": {
+        "operationId": "AuthController_verifyEmailAddress",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify an email with a 6-digit code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/resend": {
+      "post": {
+        "operationId": "AuthController_resendVerification",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resend email verification code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/{id}": {
+      "delete": {
+        "operationId": "AuthController_removeEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove an email address",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/{id}/primary": {
+      "put": {
+        "operationId": "AuthController_setPrimaryEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set an email as primary",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/operators": {
       "get": {
         "description": "Primary endpoint for the operators listing/discovery page with flexible filtering and sorting",
@@ -334,6 +622,29 @@
             "description": "Operator ID",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
             }
           },
           {
@@ -2653,6 +2964,171 @@
           "Health"
         ]
       }
+    },
+    "/api/v1/user/profile": {
+      "put": {
+        "operationId": "UserController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user profile",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/preferences": {
+      "get": {
+        "operationId": "UserController_getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get user preferences",
+        "tags": [
+          "User"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user preferences",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions": {
+      "get": {
+        "operationId": "UserController_getSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List active sessions",
+        "tags": [
+          "User"
+        ]
+      },
+      "delete": {
+        "operationId": "UserController_revokeAllSessions",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke all other sessions",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions/{id}": {
+      "delete": {
+        "operationId": "UserController_revokeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a specific session",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/account": {
+      "delete": {
+        "operationId": "UserController_deleteAccount",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete user account",
+        "tags": [
+          "User"
+        ]
+      }
     }
   },
   "info": {
@@ -2709,6 +3185,106 @@
       }
     },
     "schemas": {
+      "ChallengeRequestDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "VerifySignatureDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          },
+          "signature": {
+            "type": "string",
+            "description": "Signed message signature"
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Nonce from challenge response"
+          }
+        },
+        "required": [
+          "address",
+          "signature",
+          "nonce"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "description": "Refresh token"
+          }
+        }
+      },
+      "AddEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to add",
+            "example": "user@example.com"
+          },
+          "risk_alerts": {
+            "type": "boolean",
+            "description": "Opt-in for risk alerts",
+            "default": true
+          },
+          "marketing": {
+            "type": "boolean",
+            "description": "Opt-in for marketing emails",
+            "default": false
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "VerifyEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to verify",
+            "example": "user@example.com"
+          },
+          "code": {
+            "type": "string",
+            "description": "6-digit verification code",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ]
+      },
+      "ResendVerificationDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to resend verification for",
+            "example": "user@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
       "PICommissionDto": {
         "type": "object",
         "properties": {
@@ -3151,6 +3727,41 @@
         "required": [
           "operator_ids"
         ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "Display name"
+          }
+        }
+      },
+      "UpdatePreferencesDto": {
+        "type": "object",
+        "properties": {
+          "risk_alerts_operator_changes": {
+            "type": "boolean"
+          },
+          "risk_alerts_slashing": {
+            "type": "boolean"
+          },
+          "risk_alerts_tvs_changes": {
+            "type": "boolean"
+          },
+          "watchlist_daily_summary": {
+            "type": "boolean"
+          },
+          "watchlist_status_changes": {
+            "type": "boolean"
+          },
+          "product_updates": {
+            "type": "boolean"
+          },
+          "newsletter": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }
