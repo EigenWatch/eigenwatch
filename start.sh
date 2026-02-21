@@ -1,9 +1,9 @@
 #!/bin/sh
 set -e
 
-# Generate Prisma Client based on the schema
-echo "--> Generating Prisma Client..."
-npx prisma generate
+# Generate Prisma Clients based on the schemas
+echo "--> Generating Prisma Clients..."
+npm run prisma:generate
 
 # Start the application on port 5000
 export PORT=5000
