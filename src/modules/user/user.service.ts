@@ -25,13 +25,7 @@ export class UserService {
   async updateProfile(userId: string, data: { display_name?: string }) {
     const user = await this.userRepository.updateProfile(userId, data);
     this.logger.log(`Profile updated for user ${userId}`);
-    return {
-      id: user.id,
-      wallet_address: user.wallet_address,
-      display_name: user.display_name,
-      tier: user.tier,
-      created_at: user.created_at,
-    };
+    return user;
   }
 
   // ==================== PREFERENCES ====================

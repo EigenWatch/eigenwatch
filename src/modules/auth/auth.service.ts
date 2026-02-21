@@ -122,6 +122,7 @@ export class AuthService {
       id: user.id,
       wallet_address: user.wallet_address,
       tier: (user.tier as string).toLowerCase() as UserTier,
+      display_name: user.display_name,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
       emails: user.emails?.map((e) => ({
         id: e.id,
@@ -130,11 +131,18 @@ export class AuthService {
         is_primary: e.is_primary,
         created_at: e.created_at,
       })),
+      created_at: user.created_at.toISOString(),
     };
 
     this.logger.log(
       `User authenticated: ${user.wallet_address} (${isNew ? "new" : "returning"})`,
     );
+
+    console.log(`[AuthService] verifyAndAuthenticate returning user:`, {
+      id: authUser.id,
+      display_name: authUser.display_name,
+      created_at: authUser.created_at,
+    });
 
     return {
       tokens,
@@ -178,6 +186,7 @@ export class AuthService {
       id: user.id,
       wallet_address: user.wallet_address,
       tier: (user.tier as string).toLowerCase() as UserTier,
+      display_name: user.display_name,
       email_verified: user.emails?.some((e) => e.is_verified) ?? false,
       emails: user.emails?.map((e) => ({
         id: e.id,
@@ -186,7 +195,15 @@ export class AuthService {
         is_primary: e.is_primary,
         created_at: e.created_at,
       })),
+      created_at: user.created_at.toISOString(),
+      preferences: user.preferences,
     };
+
+    console.log(`[AuthService] refreshTokens returning user:`, {
+      id: authUser.id,
+      display_name: authUser.display_name,
+      created_at: authUser.created_at,
+    });
 
     return { tokens, user: authUser };
   }

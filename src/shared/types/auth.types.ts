@@ -21,7 +21,11 @@ export interface AuthUser {
   wallet_address: string;
   tier: UserTier;
   email_verified: boolean;
+  display_name?: string;
+  avatar_url?: string;
   emails?: UserEmail[];
+  preferences?: any;
+  created_at?: string;
 }
 
 export interface JwtTokenPair {

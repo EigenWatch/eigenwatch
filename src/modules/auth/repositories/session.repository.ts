@@ -30,7 +30,7 @@ export class SessionRepository {
         revoked_at: null,
         expires_at: { gt: new Date() },
       },
-      include: { user: { include: { emails: true } } },
+      include: { user: { include: { emails: true, preferences: true } } },
     });
   }
 
