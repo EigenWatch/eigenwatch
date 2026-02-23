@@ -11,6 +11,7 @@ import { UserRepository } from "./repositories/user.repository";
 import { SessionRepository } from "./repositories/session.repository";
 import { NonceRepository } from "./repositories/nonce.repository";
 import { EmailRepository } from "./repositories/email.repository";
+import { EmailTransportService } from "./email-transport.service";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { EmailRepository } from "./repositories/email.repository";
   providers: [
     AuthService,
     EmailService,
+    EmailTransportService,
     SignatureVerificationService,
     JwtStrategy,
     UserRepository,

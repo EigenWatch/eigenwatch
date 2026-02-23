@@ -34,6 +34,19 @@ export const env = cleanEnv(process.env, {
     default: 'info',
   }),
   CORS_ORIGINS: str({ default: '*' }),
+
+  // Email - Brevo (Primary)
+  BREVO_API_KEY: str({ default: '' }),
+  BREVO_SENDER_EMAIL: str({ default: 'noreply@eigenwatch.xyz' }),
+  BREVO_SENDER_NAME: str({ default: 'EigenWatch' }),
+
+  // Email - SMTP Fallback (Google)
+  SMTP_HOST: str({ default: 'smtp.gmail.com' }),
+  SMTP_PORT: num({ default: 587 }),
+  SMTP_USER: str({ default: '' }),
+  SMTP_PASS: str({ default: '' }),
+  SMTP_FROM_EMAIL: str({ default: '' }),
+  SMTP_FROM_NAME: str({ default: 'EigenWatch' }),
 });
 
 export type Environment = typeof env;

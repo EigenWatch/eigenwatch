@@ -1,14 +1,19 @@
 import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { randomInt } from "crypto";
 import { EmailRepository } from "./repositories/email.repository";
+import { EmailTransportService } from "./email-transport.service";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
+import { verificationCodeEmail } from "./templates/email-templates";
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly emailRepository: EmailRepository) {}
+  constructor(
+    private readonly emailRepository: EmailRepository,
+    private readonly emailTransport: EmailTransportService,
+  ) {}
 
   /**
    * Add an email to a user's account and send a verification code.
@@ -25,8 +30,8 @@ export class EmailService {
       marketing_opt_in: preferences?.marketing ?? false,
     });
 
-    // Generate and "send" verification code (console-only for now)
-    await this.generateAndLogCode(email);
+    // Generate and send verification code via Brevo (or SMTP fallback)
+    await this.generateAndSendCode(email);
 
     return {
       message: "Verification code sent to your email",
@@ -122,7 +127,7 @@ export class EmailService {
       );
     }
 
-    await this.generateAndLogCode(email);
+    await this.generateAndSendCode(email);
 
     return { message: "Verification code sent to your email" };
   }
@@ -181,15 +186,25 @@ export class EmailService {
 
   // ---- Private helpers ----
 
-  private async generateAndLogCode(email: string): Promise<void> {
+  private async generateAndSendCode(email: string): Promise<void> {
     const code = randomInt(100000, 999999).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresInMinutes = 10;
+    const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
 
     await this.emailRepository.createVerificationCode(email, code, expiresAt);
 
-    // TODO: Replace with real email transport (SendGrid, Brevo, etc.)
-    this.logger.warn(
-      `[EMAIL VERIFICATION] Code for ${email}: ${code} (expires: ${expiresAt.toISOString()})`,
-    );
+    const template = verificationCodeEmail(code, expiresInMinutes);
+    const sent = await this.emailTransport.sendEmail({
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+
+    if (!sent) {
+      this.logger.warn(
+        `[EMAIL VERIFICATION] Transport failed - Code for ${email}: ${code} (expires: ${expiresAt.toISOString()})`,
+      );
+    }
   }
 }
