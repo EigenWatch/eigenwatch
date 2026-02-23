@@ -222,7 +222,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() filters: ListOperatorStrategiesDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "free";
+    const tier: UserTier = user?.tier ?? "FREE";
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
       filters,
@@ -284,7 +284,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() query: ListOperatorAVSDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "free";
+    const tier: UserTier = user?.tier ?? "FREE";
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
@@ -385,7 +385,7 @@ export class OperatorsController extends BaseController<any> {
     @Param("id") id: string,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "free";
+    const tier: UserTier = user?.tier ?? "FREE";
     const overview = await this.operatorService.getCommissionOverview(id, tier);
     return ResponseHelper.ok(
       overview,
@@ -397,7 +397,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 11: Get Commission History
    */
   @Get(":id/commission/history")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get commission history",
@@ -453,7 +453,7 @@ export class OperatorsController extends BaseController<any> {
     @Query() query: ListDelegatorsDto,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "free";
+    const tier: UserTier = user?.tier ?? "FREE";
     const paginationParams = this.handlePagination(query);
 
     const result = await this.operatorService.listDelegators(
@@ -627,8 +627,11 @@ export class OperatorsController extends BaseController<any> {
     @Param("id") id: string,
     @CurrentUser() user: AuthUser | null,
   ) {
-    const tier: UserTier = user?.tier ?? "free";
-    const overview = await this.operatorService.getAllocationsOverview(id, tier);
+    const tier: UserTier = user?.tier ?? "FREE";
+    const overview = await this.operatorService.getAllocationsOverview(
+      id,
+      tier,
+    );
     return ResponseHelper.ok(
       overview,
       "Allocations overview retrieved successfully",
@@ -696,7 +699,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 17: Get Operator Risk Assessment
    */
   @Get(":id/risk")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator risk assessment",
@@ -730,7 +733,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 18: Get Concentration Metrics
    */
   @Get(":id/concentration")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get concentration metrics",
@@ -765,7 +768,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 19: Get Volatility Metrics
    */
   @Get(":id/volatility")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get volatility metrics",
@@ -1015,7 +1018,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 26: Compare Operators
    */
   @Post("compare")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operators",
@@ -1039,7 +1042,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 27: Get Operator Percentile Rankings
    */
   @Get(":id/rankings")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator percentile rankings",
@@ -1070,7 +1073,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 28: Compare Operator to Network Averages
    */
   @Get(":id/vs-network")
-  @TierGated("pro")
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operator to network averages",

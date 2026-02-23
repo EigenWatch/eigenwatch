@@ -13,9 +13,9 @@ import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { AuthUser, UserTier } from "src/shared/types/auth.types";
 
 const TIER_HIERARCHY: Record<UserTier, number> = {
-  free: 0,
-  pro: 1,
-  enterprise: 2,
+  FREE: 0,
+  PRO: 1,
+  ENTERPRISE: 2,
 };
 
 @Injectable()
@@ -42,7 +42,7 @@ export class TierGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as AuthUser | null;
     const userTier: UserTier =
-      (user?.tier?.toLowerCase() as UserTier) ?? "free";
+      (user?.tier?.toUpperCase() as UserTier) ?? "FREE";
 
     const userLevel = TIER_HIERARCHY[userTier] ?? 0;
     const requiredLevel = TIER_HIERARCHY[requiredTier] ?? 0;
