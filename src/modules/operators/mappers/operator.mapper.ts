@@ -772,6 +772,7 @@ export class OperatorMapper {
       avs_commissions: avsCommissions.map((c) => ({
         avs_id: c.avs_id,
         avs_name: this.getAVSName(c.avs?.address),
+        avs_logo: this.getAVSLogo(c.avs?.address),
         current_bips: c.current_bips,
         activated_at: c.current_activated_at.toISOString(),
         upcoming_bips: c.upcoming_bips,

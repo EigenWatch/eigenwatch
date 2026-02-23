@@ -291,6 +291,7 @@ export class OperatorsController extends BaseController<any> {
         query.status,
         query.sort_by,
         tier,
+        { limit: query.limit, offset: query.offset },
       );
 
     return ResponseHelper.ok(

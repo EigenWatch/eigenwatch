@@ -330,6 +330,7 @@ export class OperatorService extends BaseService<any> {
     status?: string,
     sortBy?: string,
     tier: UserTier = "free",
+    pagination?: PaginationParams,
   ): Promise<any> {
     const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
     const cached =
@@ -351,6 +352,12 @@ export class OperatorService extends BaseService<any> {
           operatorId,
           status,
         );
+
+      // Preload AVS metadata before mapping so names/logos resolve correctly
+      const avsIds = relationships
+        .map((rel: any) => rel.avs_id)
+        .filter(Boolean);
+      await this.operatorMapper.preloadAVSMetadata(avsIds);
 
       mapped = relationships.map((rel) =>
         this.operatorMapper.mapToAVSRelationshipListItem(rel),
@@ -378,11 +385,15 @@ export class OperatorService extends BaseService<any> {
       await this.cacheService.set(cacheKey, mapped, 300); // 5 minutes TTL
     }
 
+    const total = mapped.length;
+    const activeCount = mapped.filter(
+      (r) => r.current_status === "registered",
+    ).length;
+
     if (tier === "free") {
       return {
-        total_avs: mapped.length,
-        active_avs: mapped.filter((r) => r.current_status === "registered")
-          .length,
+        total_avs: total,
+        active_avs: activeCount,
         avs_relationships: null,
         tier_context: {
           user_tier: "free",
@@ -392,11 +403,16 @@ export class OperatorService extends BaseService<any> {
       };
     }
 
+    // Apply pagination
+    const limit = pagination?.limit || 20;
+    const offset = pagination?.offset || 0;
+    const paginated = mapped.slice(offset, offset + limit);
+
     return {
-      total_avs: mapped.length,
-      active_avs: mapped.filter((r) => r.current_status === "registered")
-        .length,
-      avs_relationships: mapped,
+      total_avs: total,
+      active_avs: activeCount,
+      avs_relationships: paginated,
+      pagination: PaginationHelper.buildMeta(total, limit, offset),
       tier_context: {
         user_tier: tier.toLowerCase(),
         gated_fields: [],
@@ -502,6 +518,12 @@ export class OperatorService extends BaseService<any> {
       this.operatorAVSRepository.findCommissionOverview(operatorId),
       this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
     ]);
+
+    // Preload AVS metadata so names/logos resolve correctly in commission mapping
+    const avsIds = commissions.rates
+      .map((r: any) => r.avs_id)
+      .filter(Boolean);
+    await this.operatorMapper.preloadAVSMetadata(avsIds);
 
     const overview = this.operatorMapper.mapToCommissionOverview({
       ...commissions,

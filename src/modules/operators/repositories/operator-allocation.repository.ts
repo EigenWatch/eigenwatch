@@ -23,7 +23,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
         await Promise.all([
           // Get all allocations with AVS and strategy info
           this.prisma.operator_allocations.findMany({
-            where: { operator_id: operatorId },
+            where: { operator_id: operatorId.toLowerCase() },
             include: {
               strategies: true,
               operator_sets: {
@@ -36,7 +36,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
 
           // Get strategy state for TVS and utilization
           this.prisma.operator_strategy_state.findMany({
-            where: { operator_id: operatorId },
+            where: { operator_id: operatorId.toLowerCase() },
             include: {
               strategies: true,
             },
@@ -44,7 +44,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
 
           // Get AVS allocation summaries
           this.prisma.operator_avs_allocation_summary.findMany({
-            where: { operator_id: operatorId },
+            where: { operator_id: operatorId.toLowerCase() },
             include: {
               avs: true,
               strategies: true,
@@ -53,7 +53,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
 
           // Get commission rates for context
           this.prisma.operator_commission_rates.findMany({
-            where: { operator_id: operatorId },
+            where: { operator_id: operatorId.toLowerCase() },
             include: {
               avs: true,
               operator_sets: true,
@@ -104,14 +104,14 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
     sortOrder: "asc" | "desc" = "desc",
   ): Promise<any[]> {
     return this.execute(async () => {
-      const where: any = { operator_id: operatorId };
+      const where: any = { operator_id: operatorId.toLowerCase() };
 
       if (filters.avs_id) {
-        where.operator_sets = { avs_id: filters.avs_id };
+        where.operator_sets = { avs_id: filters.avs_id.toLowerCase() };
       }
 
       if (filters.strategy_id) {
-        where.strategy_id = filters.strategy_id;
+        where.strategy_id = filters.strategy_id.toLowerCase();
       }
 
       const orderBy: any = {};
@@ -151,14 +151,14 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
     },
   ): Promise<number> {
     return this.execute(async () => {
-      const where: any = { operator_id: operatorId };
+      const where: any = { operator_id: operatorId.toLowerCase() };
 
       if (filters.avs_id) {
-        where.operator_sets = { avs_id: filters.avs_id };
+        where.operator_sets = { avs_id: filters.avs_id.toLowerCase() };
       }
 
       if (filters.strategy_id) {
-        where.strategy_id = filters.strategy_id;
+        where.strategy_id = filters.strategy_id.toLowerCase();
       }
 
       return this.prisma.operator_allocations.count({ where });
@@ -179,7 +179,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
-        operator_id: operatorId,
+        operator_id: operatorId.toLowerCase(),
         snapshot_date: {
           gte: filters.date_from,
           lte: filters.date_to,
@@ -213,7 +213,7 @@ export class OperatorAllocationRepository extends BaseRepository<any> {
   async findStrategyState(operatorId: string): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_strategy_state.findMany({
-        where: { operator_id: operatorId },
+        where: { operator_id: operatorId.toLowerCase() },
         include: {
           strategies: true,
         },
