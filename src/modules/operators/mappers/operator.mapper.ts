@@ -326,17 +326,22 @@ export class OperatorMapper {
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
+    const address = strategyState.strategies?.address ?? "";
+    const cached = address
+      ? this.strategyMetadataCache.get(address.toLowerCase())
+      : null;
+
     return {
       strategy_id: strategyState.strategy_id,
-      strategy_address: strategyState.strategies?.address ?? "",
-      strategy_name: this.getStrategyName(strategyState.strategies?.address),
-      strategy_symbol: this.getStrategySymbol(
-        strategyState.strategies?.address,
-      ),
+      strategy_address: address,
+      strategy_name: this.getStrategyName(address),
+      strategy_symbol: this.getStrategySymbol(address),
+      strategy_logo: cached?.logo_url ?? null,
       max_magnitude: strategyState.max_magnitude.toString(),
       encumbered_magnitude: strategyState.encumbered_magnitude.toString(),
       available_magnitude: available.toString(),
       utilization_rate: utilization.toFixed(4),
+      tvs_usd: strategyState.tvs_usd?.toString() ?? "0",
       last_updated_at: strategyState.updated_at?.toISOString() ?? "",
       delegator_count: delegatorCount,
     };
@@ -410,11 +415,10 @@ export class OperatorMapper {
   }
 
   private getStrategySymbol(address: string): string {
-    // Strategy symbol mapping
-    const symbols: Record<string, string> = {
-      // Add known strategy addresses and symbols
-    };
-    return symbols[address?.toLowerCase()] || "UNKNOWN";
+    if (!address) return "UNKNOWN";
+    const cached = this.strategyMetadataCache.get(address.toLowerCase());
+    if (cached) return cached.symbol || "UNKNOWN";
+    return "UNKNOWN";
   }
 
   // TODO: Optimise how we handle getting metadata

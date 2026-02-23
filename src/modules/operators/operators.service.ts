@@ -136,6 +136,12 @@ export class OperatorService extends BaseService<any> {
         strategyIds,
       );
 
+    // Preload strategy metadata (symbols, logos) before mapping
+    const strategyAddresses = strategies
+      .map((s) => s.strategies?.address)
+      .filter(Boolean);
+    await this.operatorMapper.preloadStrategyMetadata(strategyAddresses);
+
     const strategiesWithCounts = strategies.map((strategy) => {
       const delegatorCount = delegatorCounts.get(strategy.strategy_id) || 0;
       return this.operatorMapper.mapToStrategyListItem(
