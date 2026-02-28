@@ -474,7 +474,10 @@ export class OperatorMapper {
 
       return metadata;
     } catch (error) {
-      console.error("Failed to fetch operator metadata:", error?.message || error);
+      console.error(
+        "Failed to fetch operator metadata:",
+        error?.message || error,
+      );
       return null;
     }
   }
@@ -1016,9 +1019,7 @@ export class OperatorMapper {
       undelegated_at: delegator.undelegated_at?.toISOString() || null,
       total_shares: totalShares,
       total_tvs: totalTVS.toString(),
-      tvs_share_percentage: (
-        Number(delegator.tvs_share_pct ?? 0)
-      ).toString(),
+      tvs_share_percentage: Number(delegator.tvs_share_pct ?? 0).toString(),
       strategies,
     };
   }
@@ -1877,6 +1878,9 @@ export class OperatorMapper {
         slash_event_count_to_date: s.slash_event_count_to_date,
         operational_days: s.operational_days,
         is_active: s.is_active,
+        tvs: s.total_tvs ? s.total_tvs.toString() : "0",
+        // tvs_eth: s.total_tvs ? s.total_tvs.toString() : "0",
+        tvs_usd: s.total_tvs ? s.total_tvs.toString() : "0",
       })),
     };
   }
