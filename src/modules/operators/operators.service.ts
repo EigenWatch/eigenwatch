@@ -215,13 +215,14 @@ export class OperatorService extends BaseService<any> {
     pagination: { limit: number; offset: number },
     tier: UserTier,
   ) {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       pagination.limit,
       pagination.offset,
     );
 
-    if (tier === "FREE") {
+    if (normalizedTier === "FREE") {
       return {
         total_strategies: total,
         pagination: paginationMeta,
@@ -245,7 +246,7 @@ export class OperatorService extends BaseService<any> {
       distribution: null,
       strategies,
       tier_context: {
-        user_tier: tier,
+        user_tier: normalizedTier,
         gated_fields: [],
       },
     };
@@ -338,6 +339,7 @@ export class OperatorService extends BaseService<any> {
     tier: UserTier = "FREE",
     pagination?: PaginationParams,
   ): Promise<any> {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
     const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
     const cached =
       await this.cacheService.get<AVSRelationshipListItem[]>(cacheKey);
@@ -396,7 +398,7 @@ export class OperatorService extends BaseService<any> {
       (r) => r.current_status === "registered",
     ).length;
 
-    if (tier === "FREE") {
+    if (normalizedTier === "FREE") {
       return {
         total_avs: total,
         active_avs: activeCount,
@@ -420,7 +422,7 @@ export class OperatorService extends BaseService<any> {
       avs_relationships: paginated,
       pagination: PaginationHelper.buildMeta(total, limit, offset),
       tier_context: {
-        user_tier: tier,
+        user_tier: normalizedTier,
         gated_fields: [],
       },
     };
@@ -486,11 +488,12 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     tier: UserTier = "FREE",
   ): Promise<any> {
+    const normalizedTier = tier.toUpperCase() as UserTier;
     const cacheKey = `operators:commission:${operatorId}`;
     const cached = await this.cacheService.get<any>(cacheKey);
 
     if (cached) {
-      if (tier === "FREE") {
+      if (normalizedTier === "FREE") {
         return {
           current_rate: cached.pi_commission?.current_bips,
           positioning: cached.pi_commission?.total_changes,
@@ -507,7 +510,7 @@ export class OperatorService extends BaseService<any> {
       return {
         ...cached,
         tier_context: {
-          user_tier: tier,
+          user_tier: normalizedTier,
           gated_fields: [],
         },
       };
@@ -536,7 +539,7 @@ export class OperatorService extends BaseService<any> {
 
     await this.cacheService.set(cacheKey, overview, 300); // 5 minutes TTL
 
-    if (tier === "FREE") {
+    if (normalizedTier === "FREE") {
       return {
         current_rate: overview.pi_commission?.current_bips,
         positioning: overview.pi_commission?.total_changes,
@@ -611,6 +614,7 @@ export class OperatorService extends BaseService<any> {
     sortOrder: "asc" | "desc" = "desc",
     tier: UserTier = "FREE",
   ): Promise<{ delegators: any[]; summary: any; tier_context: any }> {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
     const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
     const cached = await this.cacheService.get<{
       delegators: any[];
@@ -665,7 +669,7 @@ export class OperatorService extends BaseService<any> {
       }),
     );
 
-    if (tier === "FREE") {
+    if (normalizedTier === "FREE") {
       const result = {
         delegators: [],
         summary,
@@ -683,7 +687,7 @@ export class OperatorService extends BaseService<any> {
       delegators: mapped,
       summary,
       tier_context: {
-        user_tier: tier,
+        user_tier: normalizedTier,
         gated_fields: [],
       },
     };
