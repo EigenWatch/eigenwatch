@@ -643,23 +643,11 @@ export class OperatorService extends BaseService<any> {
       this.operatorDelegatorRepository.getDelegatorsSummary(operatorId),
     ]);
 
-    // Map delegators with calculated total shares and TVS
+    // Map delegators — TVS is now pre-computed by the pipeline on operator_delegators
     const mapped = await Promise.all(
       delegators.map(async (d: any) => {
-        const shares = d.stakers?.operator_delegator_shares || [];
-        const totalShares = shares
-          .reduce(
-            (sum: number, share: any) =>
-              sum + parseFloat(share.shares.toString()),
-            0,
-          )
-          .toString();
-        const totalTVS = shares.reduce(
-          (sum: number, share: any) =>
-            // Handle both mapped 'tvs' (if coming from repository 'tvs' calculation) and raw 'tvs_usd'
-            sum + parseFloat((share.tvs || share.tvs_usd || 0).toString()),
-          0,
-        );
+        const totalShares = (d.shares ?? 0).toString();
+        const totalTVS = Number(d.tvs ?? 0);
 
         return this.operatorMapper.mapToDelegatorListItem(
           d,

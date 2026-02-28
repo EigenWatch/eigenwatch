@@ -35,7 +35,9 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
 
       // Build orderBy from sortBy param
       const orderBy: any = {};
-      if (sortBy === "delegated_at") {
+      if (sortBy === "tvs") {
+        orderBy.total_tvs_usd = sortOrder;
+      } else if (sortBy === "delegated_at") {
         orderBy.delegated_at = sortOrder;
       } else {
         // Default sort by delegated_at desc for consistent pagination
@@ -64,22 +66,19 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
         take: pagination.limit,
       });
 
-      // Map results with computed totals
+      // Map results — TVS is now pre-computed on operator_delegators
       return delegators.map((d: any) => {
         const shares = d.stakers?.operator_delegator_shares || [];
         const totalShares = shares.reduce(
           (sum: number, s: any) => sum + Number(s.shares),
           0,
         );
-        const totalTVS = shares.reduce(
-          (sum: number, s: any) => sum + Number(s.tvs_usd || 0),
-          0,
-        );
 
         return {
           ...d,
           shares: totalShares,
-          tvs: totalTVS,
+          tvs: Number(d.total_tvs_usd || 0),
+          tvs_share_pct: Number(d.tvs_share_pct || 0),
           strategies: shares.map((s: any) => ({
             strategy: s.strategies,
             shares: s.shares,

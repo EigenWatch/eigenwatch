@@ -35,11 +35,6 @@ export class PrismaOperatorRepository extends BaseRepository<any> {
               orderBy: { date: "desc" },
               take: 1,
             },
-            operator_strategy_state: {
-              include: {
-                strategies: true,
-              },
-            },
           },
           orderBy,
           skip: pagination.offset,

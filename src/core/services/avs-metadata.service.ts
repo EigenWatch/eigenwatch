@@ -1,7 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import { CacheService } from "@/core/cache/cache.service";
-import axios from "axios";
 
 export interface AVSMetadata {
   avs_id: string;
@@ -15,29 +14,10 @@ export interface AVSMetadata {
   telegram: string | null;
 }
 
-interface RawMetadataJson {
-  name?: string;
-  description?: string;
-  logo?: string;
-  website?: string;
-  twitter?: string;
-  discord?: string;
-  telegram?: string;
-  // Some metadata uses different field names
-  image?: string;
-  url?: string;
-  social?: {
-    twitter?: string;
-    discord?: string;
-    telegram?: string;
-  };
-}
-
 @Injectable()
 export class AVSMetadataService {
   private readonly logger = new Logger(AVSMetadataService.name);
   private readonly CACHE_TTL = 604800; // 1 week in seconds
-  private readonly FETCH_TIMEOUT = 10000; // 10 seconds
 
   constructor(
     private readonly prisma: PrismaAnalyticsService,
@@ -46,7 +26,7 @@ export class AVSMetadataService {
 
   /**
    * Get AVS metadata by AVS ID
-   * Checks Redis cache, returns default if not cached
+   * Checks Redis cache first, then avs_metadata DB table, then falls back to default
    */
   async getAVSMetadata(avsId: string): Promise<AVSMetadata | null> {
     const cacheKey = `avs:metadata:${avsId.toLowerCase()}`;
@@ -54,19 +34,37 @@ export class AVSMetadataService {
 
     if (cached) return cached;
 
-    // Fetch AVS basic info from DB to get address
+    // Query avs_metadata table (populated by the pipeline)
+    const metadataRow = await this.prisma.avs_metadata.findUnique({
+      where: { avs_id: avsId },
+      include: { avs: true },
+    });
+
+    if (metadataRow) {
+      const metadata: AVSMetadata = {
+        avs_id: metadataRow.avs_id,
+        avs_address: metadataRow.avs.address,
+        name: metadataRow.name || this.formatAddress(metadataRow.avs.address),
+        description: metadataRow.description || null,
+        logo: metadataRow.logo || null,
+        website: metadataRow.website || null,
+        twitter: metadataRow.twitter || null,
+        discord: null,
+        telegram: null,
+      };
+      await this.cacheService.set(cacheKey, metadata, this.CACHE_TTL);
+      return metadata;
+    }
+
+    // Fallback: fetch AVS basic info for address
     const avs = await this.prisma.avs.findUnique({
       where: { id: avsId },
     });
 
     if (!avs) return null;
 
-    // Return default metadata (will be populated by data pipeline via setAVSMetadata)
     const metadata = this.createDefaultMetadata(avsId, avs.address);
-
-    // Cache default so we don't keep hitting DB
     await this.cacheService.set(cacheKey, metadata, this.CACHE_TTL);
-
     return metadata;
   }
 
@@ -92,127 +90,67 @@ export class AVSMetadataService {
 
     if (uncached.length === 0) return result;
 
-    // Fetch uncached AVS records from DB
-    const avsRecords = await this.prisma.avs.findMany({
-      where: { id: { in: uncached } },
+    // Batch query avs_metadata table for uncached IDs
+    const metadataRows = await this.prisma.avs_metadata.findMany({
+      where: { avs_id: { in: uncached } },
+      include: { avs: true },
     });
 
-    // Process each AVS - return default metadata
-    for (const avs of avsRecords) {
-      const metadata = this.createDefaultMetadata(avs.id, avs.address);
-      result.set(avs.id.toLowerCase(), metadata);
+    const foundIds = new Set<string>();
 
-      // Cache it
-      const cacheKey = `avs:metadata:${avs.id.toLowerCase()}`;
+    for (const row of metadataRows) {
+      const metadata: AVSMetadata = {
+        avs_id: row.avs_id,
+        avs_address: row.avs.address,
+        name: row.name || this.formatAddress(row.avs.address),
+        description: row.description || null,
+        logo: row.logo || null,
+        website: row.website || null,
+        twitter: row.twitter || null,
+        discord: null,
+        telegram: null,
+      };
+      result.set(row.avs_id.toLowerCase(), metadata);
+      foundIds.add(row.avs_id);
+
+      const cacheKey = `avs:metadata:${row.avs_id.toLowerCase()}`;
       await this.cacheService.set(cacheKey, metadata, this.CACHE_TTL);
+    }
+
+    // For IDs not in avs_metadata, fall back to avs table for default metadata
+    const stillMissing = uncached.filter((id) => !foundIds.has(id));
+    if (stillMissing.length > 0) {
+      const avsRecords = await this.prisma.avs.findMany({
+        where: { id: { in: stillMissing } },
+      });
+
+      for (const avs of avsRecords) {
+        const metadata = this.createDefaultMetadata(avs.id, avs.address);
+        result.set(avs.id.toLowerCase(), metadata);
+
+        const cacheKey = `avs:metadata:${avs.id.toLowerCase()}`;
+        await this.cacheService.set(cacheKey, metadata, this.CACHE_TTL);
+      }
     }
 
     return result;
   }
 
   /**
-   * Store metadata in Redis cache
-   * This is the main method for the data pipeline to populate AVS metadata
+   * Force refresh metadata (clears cache, next read re-populates from DB)
    */
-  async setAVSMetadata(
-    avsId: string,
-    avsAddress: string,
-    rawMetadata: RawMetadataJson,
-  ): Promise<AVSMetadata> {
-    const metadata = this.normalizeMetadata(avsId, avsAddress, rawMetadata);
+  async refreshMetadata(avsId: string): Promise<void> {
     const cacheKey = `avs:metadata:${avsId.toLowerCase()}`;
-    await this.cacheService.set(cacheKey, metadata, this.CACHE_TTL);
-    return metadata;
-  }
-
-  /**
-   * Store metadata by fetching from a URI
-   * Fetches the metadata from the URI, normalizes it, and stores in Redis
-   */
-  async setAVSMetadataFromUri(
-    avsId: string,
-    avsAddress: string,
-    metadataUri: string,
-  ): Promise<AVSMetadata | null> {
-    const rawMetadata = await this.fetchMetadataFromUri(metadataUri);
-    if (!rawMetadata) {
-      return null;
-    }
-    return this.setAVSMetadata(avsId, avsAddress, rawMetadata);
-  }
-
-  /**
-   * Fetch metadata from a URI (HTTP/HTTPS or IPFS)
-   */
-  private async fetchMetadataFromUri(
-    uri: string,
-  ): Promise<RawMetadataJson | null> {
-    if (!uri) return null;
-
-    try {
-      // Handle IPFS URIs
-      let fetchUrl = uri;
-      if (uri.startsWith("ipfs://")) {
-        const ipfsHash = uri.replace("ipfs://", "");
-        fetchUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
-      } else if (uri.startsWith("ar://")) {
-        // Arweave URIs
-        const arweaveHash = uri.replace("ar://", "");
-        fetchUrl = `https://arweave.net/${arweaveHash}`;
-      }
-
-      const response = await axios.get(fetchUrl, {
-        timeout: this.FETCH_TIMEOUT,
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (response.status === 200 && response.data) {
-        // Handle case where response might be a string
-        if (typeof response.data === "string") {
-          try {
-            return JSON.parse(response.data);
-          } catch {
-            this.logger.warn(`Invalid JSON from URI: ${uri}`);
-            return null;
-          }
-        }
-        return response.data;
-      }
-
-      return null;
-    } catch {
-      this.logger.debug(`Failed to fetch metadata from URI: ${uri}`);
-      return null;
-    }
-  }
-
-  /**
-   * Normalize different metadata formats to our standard structure
-   */
-  private normalizeMetadata(
-    avsId: string,
-    avsAddress: string,
-    raw: RawMetadataJson,
-  ): AVSMetadata {
-    return {
-      avs_id: avsId,
-      avs_address: avsAddress,
-      name: raw.name || this.formatAddress(avsAddress),
-      description: raw.description || null,
-      logo: raw.logo || raw.image || null,
-      website: raw.website || raw.url || null,
-      twitter: raw.twitter || raw.social?.twitter || null,
-      discord: raw.discord || raw.social?.discord || null,
-      telegram: raw.telegram || raw.social?.telegram || null,
-    };
+    await this.cacheService.delete(cacheKey);
   }
 
   /**
    * Create default metadata when none is available
    */
-  private createDefaultMetadata(avsId: string, avsAddress: string): AVSMetadata {
+  private createDefaultMetadata(
+    avsId: string,
+    avsAddress: string,
+  ): AVSMetadata {
     return {
       avs_id: avsId,
       avs_address: avsAddress,
@@ -224,15 +162,6 @@ export class AVSMetadataService {
       discord: null,
       telegram: null,
     };
-  }
-
-  /**
-   * Force refresh metadata (clears cache, returns default)
-   */
-  async refreshMetadata(avsId: string): Promise<AVSMetadata | null> {
-    const cacheKey = `avs:metadata:${avsId.toLowerCase()}`;
-    await this.cacheService.delete(cacheKey);
-    return this.getAVSMetadata(avsId);
   }
 
   /**

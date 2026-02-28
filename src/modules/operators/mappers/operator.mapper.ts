@@ -69,6 +69,7 @@ export class OperatorMapper {
     const analytics = data.operator_analytics?.[0];
     const metadata = await this.getOperatorMetadataByUri(
       data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
@@ -92,6 +93,7 @@ export class OperatorMapper {
     const registration = data.operator_registration;
     const metadata = await this.getOperatorMetadataByUri(
       data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
@@ -424,9 +426,29 @@ export class OperatorMapper {
   // TODO: Optimise how we handle getting metadata
   private async getOperatorMetadataByUri(
     uri: string,
+    metadataJson?: any,
   ): Promise<OperatorMetadata | null> {
     try {
-      // Only fetch if it's a fully qualified HTTP(S) URL
+      // 1. Try pre-fetched metadata_json from operator_metadata table (already in query result)
+      if (metadataJson && typeof metadataJson === "object") {
+        const metadata: OperatorMetadata = {
+          name: metadataJson.name ?? "",
+          website: metadataJson.website ?? "",
+          description: metadataJson.description ?? "",
+          logo: metadataJson.logo ?? "",
+          twitter: metadataJson.twitter ?? "",
+        };
+
+        // Cache it so future calls don't even need the DB result
+        if (uri) {
+          const cacheKey = `metadata:${uri}`;
+          await this.cacheService.set(cacheKey, metadata, 432000);
+        }
+
+        return metadata;
+      }
+
+      // Only fetch via HTTP if it's a fully qualified HTTP(S) URL
       if (!uri.startsWith("http")) return null;
 
       const cacheKey = `metadata:${uri}`;
@@ -436,7 +458,8 @@ export class OperatorMapper {
         return cached;
       }
 
-      const { data } = await axios.get(uri);
+      // 2. HTTP fallback with timeout to prevent hanging
+      const { data } = await axios.get(uri, { timeout: 5000 });
 
       // Validate and normalize the returned metadata structure
       const metadata: OperatorMetadata = {
@@ -451,7 +474,7 @@ export class OperatorMapper {
 
       return metadata;
     } catch (error) {
-      console.error("Failed to fetch operator metadata:", error);
+      console.error("Failed to fetch operator metadata:", error?.message || error);
       return null;
     }
   }
@@ -993,7 +1016,9 @@ export class OperatorMapper {
       undelegated_at: delegator.undelegated_at?.toISOString() || null,
       total_shares: totalShares,
       total_tvs: totalTVS.toString(),
-      shares_percentage: "0", // Would need to calculate against total operator shares
+      tvs_share_percentage: (
+        Number(delegator.tvs_share_pct ?? 0)
+      ).toString(),
       strategies,
     };
   }

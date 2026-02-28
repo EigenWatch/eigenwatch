@@ -8,6 +8,7 @@ import {
 import { UserRepository } from "../auth/repositories/user.repository";
 import { SessionRepository } from "../auth/repositories/session.repository";
 import { PreferencesRepository } from "./preferences.repository";
+import { CacheService } from "@/core/cache/cache.service";
 import { AuthUser } from "src/shared/types/auth.types";
 
 @Injectable()
@@ -18,12 +19,14 @@ export class UserService {
     private userRepository: UserRepository,
     private sessionRepository: SessionRepository,
     private preferencesRepository: PreferencesRepository,
+    private cacheService: CacheService,
   ) {}
 
   // ==================== PROFILE ====================
 
   async updateProfile(userId: string, data: { display_name?: string }) {
     const user = await this.userRepository.updateProfile(userId, data);
+    await this.cacheService.delete(`auth:user:${userId}`);
     this.logger.log(`Profile updated for user ${userId}`);
     return user;
   }
@@ -65,6 +68,7 @@ export class UserService {
       userId,
       data,
     )) as any;
+    await this.cacheService.delete(`auth:user:${userId}`);
     this.logger.log(`Preferences updated for user ${userId}`);
 
     return {
