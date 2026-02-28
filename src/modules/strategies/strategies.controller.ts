@@ -16,12 +16,13 @@ import {
 import { StrategiesService } from "./strategies.service";
 import { FindStrategiesQueryDto } from "./dto/list-strategies.dto";
 import { DateRangeDto } from "./dto/date-range.dto";
-import { Public } from "@/core/decorators/public.decorator";
+import { RequireAuth } from "@/core/decorators/require-auth.decorator";
 import { ResponseHelper } from "@/core/responses/response.helper";
 import { PaginationDto } from "@/shared/dto/pagination.dto";
 
 @ApiTags("Strategies")
 @Controller("strategies")
+@RequireAuth()
 export class StrategiesController {
   private readonly logger = new Logger(StrategiesController.name);
 
@@ -31,7 +32,6 @@ export class StrategiesController {
    * Get network-wide strategy statistics
    */
   @Get("stats")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get network strategy statistics",
@@ -54,7 +54,6 @@ export class StrategiesController {
    * List all strategies with filters and pagination
    */
   @Get()
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get all strategies with filters and pagination",
@@ -83,7 +82,6 @@ export class StrategiesController {
    * Get strategy by ID
    */
   @Get(":id")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy detail",
@@ -108,7 +106,6 @@ export class StrategiesController {
    * Get operators using a strategy
    */
   @Get(":id/operators")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operators using strategy",
@@ -138,7 +135,6 @@ export class StrategiesController {
    * Get delegators for a strategy
    */
   @Get(":id/delegators")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get top delegators for strategy",
@@ -168,7 +164,6 @@ export class StrategiesController {
    * Get price history for strategy's underlying token
    */
   @Get(":id/price-history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get token price history",
@@ -195,7 +190,6 @@ export class StrategiesController {
    * Get TVS history for a strategy
    */
   @Get(":id/tvs-history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy TVS history",

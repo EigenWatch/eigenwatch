@@ -21,8 +21,8 @@ import { BaseController } from "@/core/common/base.controller";
 import { PaginationHelper } from "@/core/common/pagination.helper";
 import { ResponseHelper } from "@/core/responses/response.helper";
 import { OperatorService } from "./operators.service";
-import { Public } from "@/core/decorators/public.decorator";
 import { CurrentUser } from "@/core/decorators/current-user.decorator";
+import { RequireAuth } from "@/core/decorators/require-auth.decorator";
 import { TierGated } from "@/core/decorators/tier-gated.decorator";
 import { FindOperatorsQueryDto } from "./dto/index.dto";
 import { GetActivityDto } from "./dto/activity.dto";
@@ -58,6 +58,7 @@ import { AuthUser, UserTier } from "@/shared/types/auth.types";
 
 @ApiTags("Operators")
 @Controller("operators")
+@RequireAuth()
 export class OperatorsController extends BaseController<any> {
   private readonly logger = new Logger(OperatorsController.name);
 
@@ -69,7 +70,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 1: List Operators
   // ============================================================================
   @Get()
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get all operators with filters and pagination",
@@ -107,7 +107,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 2: Get Operator Overview
   // ============================================================================
   @Get(":id")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator overview",
@@ -135,7 +134,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 3: Get Operator Statistics
   // ============================================================================
   @Get(":id/stats")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator statistics",
@@ -163,7 +161,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 4: Get Operator Activity Timeline
   // ============================================================================
   @Get(":id/activity")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator activity timeline",
@@ -201,7 +198,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 5: List Operator Strategies
   // ============================================================================
   @Get(":id/strategies")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator strategies",
@@ -220,9 +216,9 @@ export class OperatorsController extends BaseController<any> {
   async getStrategies(
     @Param("id") id: string,
     @Query() filters: ListOperatorStrategiesDto,
-    @CurrentUser() user: AuthUser | null,
+    @CurrentUser() user: AuthUser,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user.tier;
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
       filters,
@@ -238,7 +234,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 6: Get Strategy Detail for Operator
   // ============================================================================
   @Get(":id/strategies/:strategyId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy detail for operator",
@@ -267,7 +262,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 7: List Operator AVS Registrations
   // ============================================================================
   @Get(":id/avs")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator AVS registrations",
@@ -282,9 +276,9 @@ export class OperatorsController extends BaseController<any> {
   async getAVSRegistrations(
     @Param("id") id: string,
     @Query() query: ListOperatorAVSDto,
-    @CurrentUser() user: AuthUser | null,
+    @CurrentUser() user: AuthUser,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user.tier;
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
@@ -304,7 +298,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 8: Get Operator-AVS Detail
   // ============================================================================
   @Get(":id/avs/:avsId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator-AVS detail",
@@ -329,7 +322,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 9: Get Operator AVS Registration History
   // ============================================================================
   @Get(":id/avs/:avsId/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator AVS registration history",
@@ -364,7 +356,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 10: Get Operator Commission Overview
    */
   @Get(":id/commission")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator commission overview",
@@ -383,9 +374,9 @@ export class OperatorsController extends BaseController<any> {
   })
   async getCommissionOverview(
     @Param("id") id: string,
-    @CurrentUser() user: AuthUser | null,
+    @CurrentUser() user: AuthUser,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user.tier;
     const overview = await this.operatorService.getCommissionOverview(id, tier);
     return ResponseHelper.ok(
       overview,
@@ -432,7 +423,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 12: List Operator Delegators
    */
   @Get(":id/delegators")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator delegators",
@@ -451,9 +441,9 @@ export class OperatorsController extends BaseController<any> {
   async listDelegators(
     @Param("id") id: string,
     @Query() query: ListDelegatorsDto,
-    @CurrentUser() user: AuthUser | null,
+    @CurrentUser() user: AuthUser,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user.tier;
     const paginationParams = this.handlePagination(query);
 
     const result = await this.operatorService.listDelegators(
@@ -490,7 +480,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 14: Get Delegation History
    */
   @Get(":id/delegators/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegation history",
@@ -538,7 +527,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 13: Get Delegator Detail
    */
   @Get(":id/delegators/:stakerId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegator detail",
@@ -568,7 +556,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint: Get Delegator Risk Exposure
    */
   @Get(":id/delegators/:stakerId/exposure")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegator risk exposure",
@@ -607,7 +594,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 15: Get Operator Allocations Overview
    */
   @Get(":id/allocations")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator allocations overview",
@@ -625,9 +611,9 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAllocationsOverview(
     @Param("id") id: string,
-    @CurrentUser() user: AuthUser | null,
+    @CurrentUser() user: AuthUser,
   ) {
-    const tier: UserTier = user?.tier ?? "FREE";
+    const tier: UserTier = user.tier;
     const overview = await this.operatorService.getAllocationsOverview(
       id,
       tier,
@@ -642,7 +628,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 16: List Detailed Allocations
    */
   @Get(":id/allocations/detailed")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List detailed allocations",
@@ -807,7 +792,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 20: Get Operator Daily Snapshots
    */
   @Get(":id/snapshots/daily")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator daily snapshots",
@@ -842,7 +826,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 21: Get Strategy TVS History
    */
   @Get(":id/strategies/:strategyId/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy TVS history",
@@ -880,7 +863,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 22: Get Delegator Shares History
    */
   @Get(":id/delegators/:stakerId/shares/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegator shares history",
@@ -917,7 +899,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 23: Get AVS Relationship Timeline
    */
   @Get(":id/avs/:avsId/timeline")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get AVS relationship timeline",
@@ -955,7 +936,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 24: Get Allocation History
    */
   @Get(":id/allocations/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get allocation history",
@@ -986,7 +966,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 25: Get Slashing Incidents
    */
   @Get(":id/slashing")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get slashing incidents",
