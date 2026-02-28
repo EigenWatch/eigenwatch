@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsNumber, Min } from "class-validator";
+import { IsOptional, IsEnum, IsNumber, Min, IsIn } from "class-validator";
 import { Type } from "class-transformer";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 
@@ -46,4 +46,12 @@ export class ListOperatorStrategiesDto extends PaginationDto {
   @IsOptional()
   @IsEnum(StrategySortField)
   sort_by?: StrategySortField = StrategySortField.TVS;
+
+  @ApiPropertyOptional({
+    enum: ["asc", "desc"],
+    default: "desc",
+  })
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sort_order?: "asc" | "desc" = "desc";
 }

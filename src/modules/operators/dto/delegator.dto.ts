@@ -1,7 +1,14 @@
 // ============================================================================
 // SRC/MODULES/OPERATORS/DTO/DELEGATOR.DTO.TS
 // ============================================================================
-import { IsOptional, IsString, IsEnum, IsNumber, Min } from "class-validator";
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsNumber,
+  Min,
+  IsIn,
+} from "class-validator";
 import { Type } from "class-transformer";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { PaginationDto } from "@/shared/dto/pagination.dto";
@@ -60,7 +67,7 @@ export class ListDelegatorsDto extends PaginationDto {
     default: "desc",
   })
   @IsOptional()
-  @IsEnum(["asc", "desc"])
+  @IsIn(["asc", "desc"])
   sort_order?: "asc" | "desc" = "desc";
 }
 

@@ -1,9 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { BaseRepository } from "@/core/common/base.repository";
 import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 
 @Injectable()
 export class OperatorDelegatorRepository extends BaseRepository<any> {
+  private readonly logger = new Logger(OperatorDelegatorRepository.name);
+
   constructor(protected readonly prisma: PrismaAnalyticsService) {
     super(prisma);
   }
@@ -36,13 +38,17 @@ export class OperatorDelegatorRepository extends BaseRepository<any> {
       // Build orderBy from sortBy param
       const orderBy: any = {};
       if (sortBy === "tvs") {
-        orderBy.total_tvs_usd = sortOrder;
+        orderBy.total_tvs_usd = { sort: sortOrder, nulls: "last" };
       } else if (sortBy === "delegated_at") {
         orderBy.delegated_at = sortOrder;
       } else {
         // Default sort by delegated_at desc for consistent pagination
         orderBy.delegated_at = "desc";
       }
+
+      this.logger.debug(
+        `[DELEGATOR-DEBUG] findDelegators called: operatorId=${operatorId}, sortBy=${sortBy}, sortOrder=${sortOrder}, limit=${pagination.limit}, offset=${pagination.offset}`,
+      );
 
       const delegators = await this.prisma.operator_delegators.findMany({
         where,

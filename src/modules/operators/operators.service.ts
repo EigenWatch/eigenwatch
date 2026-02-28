@@ -2,7 +2,7 @@ import { BaseService } from "@/core/common/base.service";
 import { OperatorNotFoundException } from "@/shared/errors/app.exceptions";
 import { PaginationParams } from "@/shared/types/query.types";
 import { UserTier } from "@/shared/types/auth.types";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ListOperatorStrategiesDto } from "./dto/list-operator-strategies.dto";
 import { ListOperatorsDto } from "./dto/list-operators.dto";
 import {
@@ -34,6 +34,7 @@ import { CacheService } from "@/core/cache/cache.service";
 
 @Injectable()
 export class OperatorService extends BaseService<any> {
+  private readonly logger = new Logger(OperatorService.name);
   constructor(
     private readonly operatorRepository: PrismaOperatorRepository,
     private readonly operatorStrategyRepository: OperatorStrategyRepository,
@@ -155,13 +156,13 @@ export class OperatorService extends BaseService<any> {
 
     if (filters.min_tvs !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.max_magnitude) >= filters.min_tvs!,
+        (s) => parseFloat(s.tvs_usd || "0") >= filters.min_tvs!,
       );
     }
 
     if (filters.max_tvs !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.max_magnitude) <= filters.max_tvs!,
+        (s) => parseFloat(s.tvs_usd || "0") <= filters.max_tvs!,
       );
     }
 
@@ -178,24 +179,29 @@ export class OperatorService extends BaseService<any> {
     }
 
     // Apply sorting
+    const direction = filters.sort_order === "asc" ? 1 : -1;
     switch (filters.sort_by) {
       case "utilization":
         filtered.sort(
           (a, b) =>
-            parseFloat(b.utilization_rate) - parseFloat(a.utilization_rate),
+            direction *
+            (parseFloat(a.utilization_rate) - parseFloat(b.utilization_rate)),
         );
         break;
       case "encumbered":
         filtered.sort(
           (a, b) =>
-            parseFloat(b.encumbered_magnitude) -
-            parseFloat(a.encumbered_magnitude),
+            direction *
+            (parseFloat(a.encumbered_magnitude) -
+              parseFloat(b.encumbered_magnitude)),
         );
         break;
       case "tvs":
       default:
         filtered.sort(
-          (a, b) => parseFloat(b.max_magnitude) - parseFloat(a.max_magnitude),
+          (a, b) =>
+            direction *
+            (parseFloat(a.tvs_usd || "0") - parseFloat(b.tvs_usd || "0")),
         );
     }
 
@@ -1030,6 +1036,7 @@ export class OperatorService extends BaseService<any> {
     );
 
     const result = this.operatorMapper.mapToDailySnapshots(snapshots);
+
     await this.cacheService.set(cacheKey, result, 3600); // 1 hour TTL
 
     return result;

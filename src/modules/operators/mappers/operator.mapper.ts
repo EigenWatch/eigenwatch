@@ -983,12 +983,10 @@ export class OperatorMapper {
     totalTVS: number = 0,
   ): Promise<any> {
     // Collect all strategy addresses to preload metadata if possible
-    const strategiesData =
-      delegator.stakers?.operator_delegator_shares ||
-      delegator.strategies ||
-      [];
+    // The repository already flattens shares into delegator.strategies
+    const strategiesData = delegator.strategies || [];
     const strategyAddresses = strategiesData
-      .map((s: any) => s.strategies?.address)
+      .map((s: any) => s.strategy?.address || s.strategies?.address)
       .filter(Boolean);
 
     // Ideally we would preload here, but let's just use the async getters for each
@@ -996,7 +994,8 @@ export class OperatorMapper {
 
     const strategies = await Promise.all(
       strategiesData.map(async (share: any) => {
-        const address = share.strategies?.address || "";
+        const address =
+          share.strategy?.address || share.strategies?.address || "";
         const metadata =
           await this.tokenMetadataService.getStrategyMetadata(address);
 
@@ -1005,7 +1004,7 @@ export class OperatorMapper {
           strategy_name: metadata?.name || this.getStrategyName(address),
           strategy_symbol: metadata?.symbol || "UNKNOWN",
           strategy_logo: metadata?.logo_url || "",
-          shares: share.shares.toString(),
+          shares: (share.shares || 0).toString(),
           tvs: share.tvs?.toString() || (share.tvs_usd?.toString() ?? "0"),
         };
       }),
@@ -1878,8 +1877,6 @@ export class OperatorMapper {
         slash_event_count_to_date: s.slash_event_count_to_date,
         operational_days: s.operational_days,
         is_active: s.is_active,
-        tvs: s.total_tvs ? s.total_tvs.toString() : "0",
-        // tvs_eth: s.total_tvs ? s.total_tvs.toString() : "0",
         tvs_usd: s.total_tvs ? s.total_tvs.toString() : "0",
       })),
     };
