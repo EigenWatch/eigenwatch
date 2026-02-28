@@ -31,12 +31,11 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
 
     if (isPublic) {
       this.logger.debug(
-        `Route marked @Public → skipping JWT → ${method} ${url}`
+        `Route marked @Public → attempting optional JWT extraction → ${method} ${url}`,
       );
-      return true;
+    } else {
+      this.logger.debug(`JWT extraction attempt → ${method} ${url}`);
     }
-
-    this.logger.debug(`JWT extraction attempt → ${method} ${url}`);
     return super.canActivate(context);
   }
 

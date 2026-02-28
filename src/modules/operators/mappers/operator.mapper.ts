@@ -69,6 +69,7 @@ export class OperatorMapper {
     const analytics = data.operator_analytics?.[0];
     const metadata = await this.getOperatorMetadataByUri(
       data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
@@ -92,6 +93,7 @@ export class OperatorMapper {
     const registration = data.operator_registration;
     const metadata = await this.getOperatorMetadataByUri(
       data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
@@ -326,17 +328,22 @@ export class OperatorMapper {
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
+    const address = strategyState.strategies?.address ?? "";
+    const cached = address
+      ? this.strategyMetadataCache.get(address.toLowerCase())
+      : null;
+
     return {
       strategy_id: strategyState.strategy_id,
-      strategy_address: strategyState.strategies?.address ?? "",
-      strategy_name: this.getStrategyName(strategyState.strategies?.address),
-      strategy_symbol: this.getStrategySymbol(
-        strategyState.strategies?.address,
-      ),
+      strategy_address: address,
+      strategy_name: this.getStrategyName(address),
+      strategy_symbol: this.getStrategySymbol(address),
+      strategy_logo: cached?.logo_url ?? null,
       max_magnitude: strategyState.max_magnitude.toString(),
       encumbered_magnitude: strategyState.encumbered_magnitude.toString(),
       available_magnitude: available.toString(),
       utilization_rate: utilization.toFixed(4),
+      tvs_usd: strategyState.tvs_usd?.toString() ?? "0",
       last_updated_at: strategyState.updated_at?.toISOString() ?? "",
       delegator_count: delegatorCount,
     };
@@ -410,19 +417,38 @@ export class OperatorMapper {
   }
 
   private getStrategySymbol(address: string): string {
-    // Strategy symbol mapping
-    const symbols: Record<string, string> = {
-      // Add known strategy addresses and symbols
-    };
-    return symbols[address?.toLowerCase()] || "UNKNOWN";
+    if (!address) return "UNKNOWN";
+    const cached = this.strategyMetadataCache.get(address.toLowerCase());
+    if (cached) return cached.symbol || "UNKNOWN";
+    return "UNKNOWN";
   }
 
   // TODO: Optimise how we handle getting metadata
   private async getOperatorMetadataByUri(
     uri: string,
+    metadataJson?: any,
   ): Promise<OperatorMetadata | null> {
     try {
-      // Only fetch if it's a fully qualified HTTP(S) URL
+      // 1. Try pre-fetched metadata_json from operator_metadata table (already in query result)
+      if (metadataJson && typeof metadataJson === "object") {
+        const metadata: OperatorMetadata = {
+          name: metadataJson.name ?? "",
+          website: metadataJson.website ?? "",
+          description: metadataJson.description ?? "",
+          logo: metadataJson.logo ?? "",
+          twitter: metadataJson.twitter ?? "",
+        };
+
+        // Cache it so future calls don't even need the DB result
+        if (uri) {
+          const cacheKey = `metadata:${uri}`;
+          await this.cacheService.set(cacheKey, metadata, 432000);
+        }
+
+        return metadata;
+      }
+
+      // Only fetch via HTTP if it's a fully qualified HTTP(S) URL
       if (!uri.startsWith("http")) return null;
 
       const cacheKey = `metadata:${uri}`;
@@ -432,7 +458,8 @@ export class OperatorMapper {
         return cached;
       }
 
-      const { data } = await axios.get(uri);
+      // 2. HTTP fallback with timeout to prevent hanging
+      const { data } = await axios.get(uri, { timeout: 5000 });
 
       // Validate and normalize the returned metadata structure
       const metadata: OperatorMetadata = {
@@ -447,7 +474,10 @@ export class OperatorMapper {
 
       return metadata;
     } catch (error) {
-      console.error("Failed to fetch operator metadata:", error);
+      console.error(
+        "Failed to fetch operator metadata:",
+        error?.message || error,
+      );
       return null;
     }
   }
@@ -772,6 +802,7 @@ export class OperatorMapper {
       avs_commissions: avsCommissions.map((c) => ({
         avs_id: c.avs_id,
         avs_name: this.getAVSName(c.avs?.address),
+        avs_logo: this.getAVSLogo(c.avs?.address),
         current_bips: c.current_bips,
         activated_at: c.current_activated_at.toISOString(),
         upcoming_bips: c.upcoming_bips,
@@ -952,12 +983,10 @@ export class OperatorMapper {
     totalTVS: number = 0,
   ): Promise<any> {
     // Collect all strategy addresses to preload metadata if possible
-    const strategiesData =
-      delegator.stakers?.operator_delegator_shares ||
-      delegator.strategies ||
-      [];
+    // The repository already flattens shares into delegator.strategies
+    const strategiesData = delegator.strategies || [];
     const strategyAddresses = strategiesData
-      .map((s: any) => s.strategies?.address)
+      .map((s: any) => s.strategy?.address || s.strategies?.address)
       .filter(Boolean);
 
     // Ideally we would preload here, but let's just use the async getters for each
@@ -965,7 +994,8 @@ export class OperatorMapper {
 
     const strategies = await Promise.all(
       strategiesData.map(async (share: any) => {
-        const address = share.strategies?.address || "";
+        const address =
+          share.strategy?.address || share.strategies?.address || "";
         const metadata =
           await this.tokenMetadataService.getStrategyMetadata(address);
 
@@ -974,7 +1004,7 @@ export class OperatorMapper {
           strategy_name: metadata?.name || this.getStrategyName(address),
           strategy_symbol: metadata?.symbol || "UNKNOWN",
           strategy_logo: metadata?.logo_url || "",
-          shares: share.shares.toString(),
+          shares: (share.shares || 0).toString(),
           tvs: share.tvs?.toString() || (share.tvs_usd?.toString() ?? "0"),
         };
       }),
@@ -988,7 +1018,7 @@ export class OperatorMapper {
       undelegated_at: delegator.undelegated_at?.toISOString() || null,
       total_shares: totalShares,
       total_tvs: totalTVS.toString(),
-      shares_percentage: "0", // Would need to calculate against total operator shares
+      tvs_share_percentage: Number(delegator.tvs_share_pct ?? 0).toString(),
       strategies,
     };
   }
@@ -1847,6 +1877,7 @@ export class OperatorMapper {
         slash_event_count_to_date: s.slash_event_count_to_date,
         operational_days: s.operational_days,
         is_active: s.is_active,
+        tvs_usd: s.total_tvs ? s.total_tvs.toString() : "0",
       })),
     };
   }

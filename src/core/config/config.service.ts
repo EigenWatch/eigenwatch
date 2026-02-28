@@ -68,4 +68,22 @@ export class AppConfigService {
       origins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()),
     };
   }
+
+  get email() {
+    return {
+      brevo: {
+        apiKey: env.BREVO_API_KEY,
+        senderEmail: env.BREVO_SENDER_EMAIL,
+        senderName: env.BREVO_SENDER_NAME,
+      },
+      smtp: {
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
+        fromEmail: env.SMTP_FROM_EMAIL,
+        fromName: env.SMTP_FROM_NAME,
+      },
+    };
+  }
 }

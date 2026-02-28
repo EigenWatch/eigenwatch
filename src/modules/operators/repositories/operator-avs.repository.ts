@@ -14,7 +14,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
   ): Promise<any[]> {
     return this.execute(async () => {
       const where: any = {
-        operator_id: operatorId,
+        operator_id: operatorId.toLowerCase(),
       };
 
       if (status && status !== "all") {
@@ -37,8 +37,8 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     return this.execute(async () => {
       return this.prisma.operator_avs_relationships.findFirst({
         where: {
-          operator_id: operatorId,
-          avs_id: avsId,
+          operator_id: operatorId.toLowerCase(),
+          avs_id: avsId.toLowerCase(),
         },
         include: {
           avs: true,
@@ -54,10 +54,10 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     return this.execute(async () => {
       // Single query: get operator sets with their allocations in one round trip
       const operatorSets = await this.prisma.operator_sets.findMany({
-        where: { avs_id: avsId },
+        where: { avs_id: avsId.toLowerCase() },
         include: {
           operator_allocations: {
-            where: { operator_id: operatorId },
+            where: { operator_id: operatorId.toLowerCase() },
             include: { strategies: true },
             orderBy: { allocated_at: "desc" },
           },
@@ -80,8 +80,8 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       const commissions =
         await this.prisma.operator_commission_history.findMany({
           where: {
-            operator_id: operatorId,
-            avs_id: avsId,
+            operator_id: operatorId.toLowerCase(),
+            avs_id: avsId.toLowerCase(),
           },
           orderBy: {
             changed_at: "desc",
@@ -99,8 +99,8 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     return this.execute(async () => {
       return this.prisma.operator_avs_registration_history.findMany({
         where: {
-          operator_id: operatorId,
-          avs_id: avsId,
+          operator_id: operatorId.toLowerCase(),
+          avs_id: avsId.toLowerCase(),
         },
         orderBy: {
           status_changed_at: "desc",
@@ -117,13 +117,13 @@ export class OperatorAVSRepository extends BaseRepository<any> {
   ): Promise<any[]> {
     return this.execute(async () => {
       const whereReg: any = {
-        operator_id: operatorId,
-        avs_id: avsId,
+        operator_id: operatorId.toLowerCase(),
+        avs_id: avsId.toLowerCase(),
       };
 
       const whereComm: any = {
-        operator_id: operatorId,
-        avs_id: avsId,
+        operator_id: operatorId.toLowerCase(),
+        avs_id: avsId.toLowerCase(),
       };
 
       if (dateFrom || dateTo) {
@@ -172,6 +172,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
   }
 
   async findCommissionOverview(operatorId: string): Promise<any> {
+    const normalizedId = operatorId.toLowerCase();
     return this.execute(async () => {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -180,7 +181,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
         [
           // 1. Get current rates
           this.prisma.operator_commission_rates.findMany({
-            where: { operator_id: operatorId },
+            where: { operator_id: normalizedId },
             include: {
               avs: true,
               operator_sets: {
@@ -194,7 +195,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
           // 2. Get aggregate stats (max bips, count last 12m)
           this.prisma.operator_commission_history.aggregate({
             where: {
-              operator_id: operatorId,
+              operator_id: normalizedId,
             },
             _max: {
               new_bips: true,
@@ -206,7 +207,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
 
           // 3. Get last change date separately (aggregate doesn't support conditional count easily in one go without raw query)
           this.prisma.operator_commission_history.findFirst({
-            where: { operator_id: operatorId },
+            where: { operator_id: normalizedId },
             orderBy: { changed_at: "desc" },
             select: { changed_at: true },
           }),
@@ -229,7 +230,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
       const changesLast12m =
         await this.prisma.operator_commission_history.count({
           where: {
-            operator_id: operatorId,
+            operator_id: normalizedId,
             changed_at: { gte: oneYearAgo },
           },
         });
@@ -274,10 +275,10 @@ export class OperatorAVSRepository extends BaseRepository<any> {
     },
   ): Promise<any[]> {
     return this.execute(async () => {
-      const where: any = { operator_id: operatorId };
+      const where: any = { operator_id: operatorId.toLowerCase() };
 
       if (filters?.avs_id) {
-        where.avs_id = filters.avs_id;
+        where.avs_id = filters.avs_id.toLowerCase();
       }
 
       if (filters?.date_from || filters?.date_to) {
@@ -302,7 +303,7 @@ export class OperatorAVSRepository extends BaseRepository<any> {
   async findCommissionRates(operatorId: string): Promise<any[]> {
     return this.execute(async () => {
       return this.prisma.operator_commission_rates.findMany({
-        where: { operator_id: operatorId },
+        where: { operator_id: operatorId.toLowerCase() },
         include: {
           avs: true,
           operator_sets: true,

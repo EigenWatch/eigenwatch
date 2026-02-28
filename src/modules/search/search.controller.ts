@@ -15,11 +15,12 @@ import {
   GetTrendingDto,
   GetRecentActivityDto,
 } from "./dto/search.dto";
-import { Public } from "@/core/decorators/public.decorator";
+import { RequireAuth } from "@/core/decorators/require-auth.decorator";
 import { ResponseHelper } from "@/core/responses/response.helper";
 
 @ApiTags("Search")
 @Controller("search")
+@RequireAuth()
 export class SearchController {
   private readonly logger = new Logger(SearchController.name);
 
@@ -29,7 +30,6 @@ export class SearchController {
    * Endpoint 32: Global Search
    */
   @Get()
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Global search",
@@ -56,7 +56,6 @@ export class SearchController {
    * Endpoint 33: Get Top Operators (Leaderboard)
    */
   @Get("leaderboard")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get top operators leaderboard",
@@ -79,7 +78,6 @@ export class SearchController {
    * Endpoint 34: Get Trending Operators
    */
   @Get("trending")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get trending operators",
@@ -106,7 +104,6 @@ export class SearchController {
    * Endpoint 35: Get Recently Active Operators
    */
   @Get("recent-activity")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get recently active operators",

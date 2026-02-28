@@ -145,6 +145,7 @@ export class AuthController {
   }
 
   @Post("logout-all")
+  @RequireAuth()
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Logout from all sessions" })
@@ -153,6 +154,7 @@ export class AuthController {
   }
 
   @Get("me")
+  @RequireAuth()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get current user information" })
   async getCurrentUser(@CurrentUser() user: AuthUser) {
