@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { env } from './env.validation';
+import { Injectable } from "@nestjs/common";
+import { env } from "./env.validation";
 
 @Injectable()
 export class AppConfigService {
@@ -9,9 +9,9 @@ export class AppConfigService {
     return {
       nodeEnv: env.NODE_ENV,
       port: env.PORT,
-      isDevelopment: env.NODE_ENV === 'development',
-      isProduction: env.NODE_ENV === 'production',
-      isStaging: env.NODE_ENV === 'staging',
+      isDevelopment: env.NODE_ENV === "development",
+      isProduction: env.NODE_ENV === "production",
+      isStaging: env.NODE_ENV === "staging",
     };
   }
 
@@ -65,7 +65,7 @@ export class AppConfigService {
   get cors() {
     const origins = env.CORS_ORIGINS;
     return {
-      origins: origins === '*' ? '*' : origins.split(',').map((o) => o.trim()),
+      origins: origins === "*" ? "*" : origins.split(",").map((o) => o.trim()),
     };
   }
 
@@ -84,6 +84,15 @@ export class AppConfigService {
         fromEmail: env.SMTP_FROM_EMAIL,
         fromName: env.SMTP_FROM_NAME,
       },
+    };
+  }
+
+  get payments() {
+    return {
+      baseRpcUrl: env.BASE_RPC_URL,
+      adminWalletAddress: env.ADMIN_WALLET_ADDRESS,
+      proPriceUsdc: env.PRO_PRICE_USDC,
+      usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
     };
   }
 }

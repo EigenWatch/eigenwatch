@@ -23,6 +23,7 @@ import { SearchModule } from "./modules/search/search.module";
 import { NetworkModule } from "./modules/network/network.module";
 import { StrategiesModule } from "./modules/strategies/strategies.module";
 import { UserModule } from "./modules/user/user.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { UserModule } from "./modules/user/user.module";
     StrategiesModule,
     HealthModule,
     UserModule,
+    PaymentsModule,
   ],
   providers: [
     {

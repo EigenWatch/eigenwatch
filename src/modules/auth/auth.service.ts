@@ -235,7 +235,7 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: "15m",
+      expiresIn: "7d",
     });
 
     // Refresh token: long-lived (7 days)

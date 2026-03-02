@@ -20,7 +20,7 @@ import { EmailTransportService } from "./email-transport.service";
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => ({
         secret: config.auth.jwtSecret,
-        signOptions: { expiresIn: "15m" },
+        signOptions: { expiresIn: "7d" },
       }),
     }),
   ],
