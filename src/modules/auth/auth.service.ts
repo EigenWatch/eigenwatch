@@ -132,6 +132,7 @@ export class AuthService {
         created_at: e.created_at,
       })),
       created_at: user.created_at.toISOString(),
+      tier_expires_at: user.tier_expires_at,
     };
 
     this.logger.log(
@@ -196,6 +197,7 @@ export class AuthService {
         created_at: e.created_at,
       })),
       created_at: user.created_at.toISOString(),
+      tier_expires_at: user.tier_expires_at,
       preferences: user.preferences,
     };
 
@@ -235,7 +237,7 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: "15m",
+      expiresIn: "7d",
     });
 
     // Refresh token: long-lived (7 days)

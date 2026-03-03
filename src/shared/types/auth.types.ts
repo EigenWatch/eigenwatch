@@ -26,6 +26,7 @@ export interface AuthUser {
   emails?: UserEmail[];
   preferences?: any;
   created_at?: string;
+  tier_expires_at?: Date | null;
 }
 
 export interface JwtTokenPair {

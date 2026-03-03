@@ -1,4 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { APP_PIPE, APP_INTERCEPTOR, APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AppConfigModule } from "./core/config/config.module";
 import { LoggerModule } from "./core/logging/logger.module";
@@ -23,9 +24,11 @@ import { SearchModule } from "./modules/search/search.module";
 import { NetworkModule } from "./modules/network/network.module";
 import { StrategiesModule } from "./modules/strategies/strategies.module";
 import { UserModule } from "./modules/user/user.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     AppConfigModule,
     LoggerModule,
     PrismaModule,
@@ -39,6 +42,7 @@ import { UserModule } from "./modules/user/user.module";
     StrategiesModule,
     HealthModule,
     UserModule,
+    PaymentsModule,
   ],
   providers: [
     {
