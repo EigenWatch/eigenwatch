@@ -3165,6 +3165,86 @@
           "User"
         ]
       }
+    },
+    "/api/v1/payments/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyPayment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a USDC payment on Base",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/paystack/initialize": {
+      "post": {
+        "operationId": "PaymentsController_initializePaystack",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializePaystackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Initialize a Paystack payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/paystack/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyPaystack",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a Paystack payment",
+        "tags": [
+          "Payments"
+        ]
+      }
     }
   },
   "info": {
@@ -3798,6 +3878,32 @@
             "type": "boolean"
           }
         }
+      },
+      "VerifyPaymentDto": {
+        "type": "object",
+        "properties": {
+          "txHash": {
+            "type": "string",
+            "description": "The transaction hash of the USDC transfer on Base",
+            "example": "0x..."
+          }
+        },
+        "required": [
+          "txHash"
+        ]
+      },
+      "InitializePaystackDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "The email address of the user making the payment"
+          }
+        },
+        "required": [
+          "email"
+        ]
       }
     }
   }

@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
 import { PaymentsService } from "./payments.service";
+import { TierManagementService } from "./tier-management.service";
 import { PaymentsController } from "./payments.controller";
 import { AuthModule } from "../auth/auth.module";
 
 @Module({
   imports: [AuthModule],
-  providers: [PaymentsService],
+  providers: [PaymentsService, TierManagementService],
   controllers: [PaymentsController],
   exports: [PaymentsService],
 })

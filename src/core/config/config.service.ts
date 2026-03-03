@@ -93,6 +93,11 @@ export class AppConfigService {
       adminWalletAddress: env.ADMIN_WALLET_ADDRESS,
       proPriceUsdc: env.PRO_PRICE_USDC,
       usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base USDC
+      paystack: {
+        secretKey: env.PAYSTACK_SECRET_KEY,
+        callbackUrl: env.PAYSTACK_CALLBACK_URL,
+        proPriceUsd: env.PRO_PRICE_USD,
+      },
     };
   }
 }

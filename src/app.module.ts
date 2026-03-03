@@ -1,4 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { APP_PIPE, APP_INTERCEPTOR, APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AppConfigModule } from "./core/config/config.module";
 import { LoggerModule } from "./core/logging/logger.module";
@@ -27,6 +28,7 @@ import { PaymentsModule } from "./modules/payments/payments.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     AppConfigModule,
     LoggerModule,
     PrismaModule,

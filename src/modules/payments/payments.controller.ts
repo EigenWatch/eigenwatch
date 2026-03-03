@@ -5,6 +5,7 @@ import { CurrentUser } from "src/core/decorators/current-user.decorator";
 import { AuthUser } from "src/shared/types/auth.types";
 import { PaymentsService } from "./payments.service";
 import { VerifyPaymentDto } from "./dto/verify-payment.dto";
+import { InitializePaystackDto } from "./dto/initialize-paystack.dto";
 
 @ApiTags("Payments")
 @Controller("payments")
@@ -20,5 +21,26 @@ export class PaymentsController {
     @Body() body: VerifyPaymentDto,
   ) {
     return this.paymentsService.verifyPayment(user.id, body.txHash);
+  }
+
+  @Post("paystack/initialize")
+  @ApiOperation({ summary: "Initialize a Paystack payment" })
+  async initializePaystack(
+    @CurrentUser() user: AuthUser,
+    @Body() body: InitializePaystackDto,
+  ) {
+    return this.paymentsService.initializePaystackTransaction(
+      user.id,
+      body.email,
+    );
+  }
+
+  @Post("paystack/verify")
+  @ApiOperation({ summary: "Verify a Paystack payment" })
+  async verifyPaystack(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { reference: string },
+  ) {
+    return this.paymentsService.verifyPaystackPayment(user.id, body.reference);
   }
 }

@@ -54,6 +54,11 @@ export const env = cleanEnv(process.env, {
     default: "0x0000000000000000000000000000000000000000",
   }),
   PRO_PRICE_USDC: str({ default: "20" }),
+
+  // Paystack
+  PAYSTACK_SECRET_KEY: str({ default: "" }),
+  PAYSTACK_CALLBACK_URL: str({ default: "http://localhost:3000/settings" }),
+  PRO_PRICE_USD: str({ default: "20" }),
 });
 
 export type Environment = typeof env;
