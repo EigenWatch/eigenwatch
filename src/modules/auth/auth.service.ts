@@ -132,6 +132,7 @@ export class AuthService {
         created_at: e.created_at,
       })),
       created_at: user.created_at.toISOString(),
+      tier_expires_at: user.tier_expires_at,
     };
 
     this.logger.log(
@@ -196,6 +197,7 @@ export class AuthService {
         created_at: e.created_at,
       })),
       created_at: user.created_at.toISOString(),
+      tier_expires_at: user.tier_expires_at,
       preferences: user.preferences,
     };
 

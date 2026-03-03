@@ -8,13 +8,62 @@ import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private provider: ethers.JsonRpcProvider;
+  private provider: ethers.Provider;
 
   constructor(
     private config: AppConfigService,
     private userRepository: UserRepository,
   ) {
-    this.provider = new ethers.JsonRpcProvider(this.config.payments.baseRpcUrl);
+    const configs = this.config.payments;
+    const providers: any[] = [];
+
+    // 1. Alchemy (High Priority)
+    if (configs.alchemyApiKey) {
+      providers.push({
+        provider: new ethers.JsonRpcProvider(
+          `https://base-mainnet.g.alchemy.com/v2/${configs.alchemyApiKey}`,
+          8453,
+          { staticNetwork: true },
+        ),
+        priority: 1,
+        weight: 1,
+      });
+    }
+
+    // 2. Infura (Standard Priority)
+    if (configs.infuraApiKey) {
+      providers.push({
+        provider: new ethers.JsonRpcProvider(
+          `https://base-mainnet.infura.io/v3/${configs.infuraApiKey}`,
+          8453,
+          { staticNetwork: true },
+        ),
+        priority: 2,
+        weight: 1,
+      });
+    }
+
+    // 3. Public RPC (Fallback Priority)
+    if (configs.baseRpcUrl) {
+      providers.push({
+        provider: new ethers.JsonRpcProvider(configs.baseRpcUrl, 8453, {
+          staticNetwork: true,
+        }),
+        priority: 3,
+        weight: 1,
+      });
+    }
+
+    // If no keys provided, at least use the default public RPC to avoid breaking everything
+    if (providers.length === 0) {
+      this.provider = new ethers.JsonRpcProvider(
+        "https://mainnet.base.org",
+        8453,
+        { staticNetwork: true },
+      );
+    } else {
+      this.provider = new ethers.FallbackProvider(providers);
+    }
   }
 
   async verifyPayment(userId: string, txHash: string) {
@@ -50,19 +99,20 @@ export class PaymentsService {
         );
       }
 
-      // Standard ERC20 Transfer event signature: Transfer(address,address,uint256)
       const transferEventTopic = ethers.id("Transfer(address,address,uint256)");
       const log = receipt.logs.find(
         (l) =>
-          l.address.toLowerCase() ===
-            this.config.payments.usdcAddress.toLowerCase() &&
+          (l.address.toLowerCase() ===
+            this.config.payments.usdcAddress.toLowerCase() ||
+            l.address.toLowerCase() ===
+              this.config.payments.usdtAddress.toLowerCase()) &&
           l.topics[0] === transferEventTopic,
       );
 
       if (!log) {
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
-          "No USDC transfer found in this transaction.",
+          "No valid stablecoin transfer found in this transaction.",
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -261,6 +311,186 @@ export class PaymentsService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async initializeFlutterwaveTransaction(userId: string, email: string) {
+    try {
+      await this.ensureVerifiedEmail(userId);
+      this.logger.log(
+        `Initializing Flutterwave transaction for user ${userId}`,
+      );
+
+      const response = await fetch("https://api.flutterwave.com/v3/payments", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.payments.flutterwave.secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tx_ref: `pro-sub-${userId}-${Date.now()}`,
+          amount: this.config.payments.paystack.proPriceUsd, // Reusing USD price
+          currency: "USD",
+          redirect_url: this.config.payments.flutterwave.redirectUrl,
+          payment_plan: this.config.payments.flutterwave.planId,
+          customer: {
+            email,
+          },
+          meta: {
+            userId,
+            tier: "PRO",
+          },
+          customizations: {
+            title: "EigenWatch Pro Subscription",
+            description: "Monthly recurring subscription for Pro features.",
+            logo: "https://dashboard.eigenwatch.xyz/logo.png",
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== "success") {
+        this.logger.error(`Flutterwave initialization failed: ${data.message}`);
+        throw new AppException(
+          ERROR_CODES.INTERNAL_ERROR,
+          data.message || "Failed to initialize Flutterwave transaction",
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      return {
+        authorization_url: data.data.link,
+      };
+    } catch (error) {
+      if (error instanceof AppException) throw error;
+      this.logger.error(
+        `Error initializing Flutterwave: ${error.message}`,
+        error.stack,
+      );
+      throw new AppException(
+        ERROR_CODES.INTERNAL_ERROR,
+        "An error occurred while initializing payment.",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async verifyFlutterwavePayment(userId: string, transactionId: string) {
+    try {
+      await this.ensureVerifiedEmail(userId);
+      this.logger.log(
+        `Verifying Flutterwave payment for user ${userId}, txId: ${transactionId}`,
+      );
+
+      const response = await fetch(
+        `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.payments.flutterwave.secretKey}`,
+          },
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== "success") {
+        this.logger.error(`Flutterwave verification failed: ${data.message}`);
+        throw new AppException(
+          ERROR_CODES.INVALID_PAYMENT,
+          data.message || "Failed to verify Flutterwave payment",
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      const { status, amount, meta } = data.data;
+
+      if (status !== "successful") {
+        throw new AppException(
+          ERROR_CODES.INVALID_PAYMENT,
+          `Transaction is ${status}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Check if the userId in meta matches
+      if (meta?.userId !== userId) {
+        throw new AppException(
+          ERROR_CODES.INVALID_PAYMENT,
+          "User ID mismatch",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Upgrade user tier
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      await this.userRepository.updateTier(userId, "PRO", expiresAt);
+
+      this.logger.log(
+        `User ${userId} upgraded to PRO via Flutterwave id ${transactionId}`,
+      );
+
+      return {
+        success: true,
+        tier: "PRO",
+        message: "Payment verified and account upgraded successfully.",
+      };
+    } catch (error) {
+      if (error instanceof AppException) throw error;
+      this.logger.error(
+        `Error verifying Flutterwave payment: ${error.message}`,
+        error.stack,
+      );
+      throw new AppException(
+        ERROR_CODES.INTERNAL_ERROR,
+        "An error occurred during payment verification.",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async handleFlutterwaveWebhook(payload: any, signature: string) {
+    const webhookHash = this.config.payments.flutterwave.webhookHash;
+
+    // 1. Verify signature
+    if (!webhookHash || signature !== webhookHash) {
+      this.logger.error("Invalid Flutterwave webhook signature");
+      throw new AppException(
+        ERROR_CODES.INVALID_PAYMENT,
+        "Invalid signature",
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    this.logger.log(`Received Flutterwave webhook: ${payload.event}`);
+
+    // 2. Handle relevant events
+    if (payload.event === "charge.completed") {
+      const { status, meta, amount, currency, id } = payload.data;
+
+      if (status === "successful") {
+        const userId = meta?.userId;
+        if (!userId) {
+          this.logger.error(
+            `No userId in webhook metadata for transaction ${id}`,
+          );
+          return { status: "error", message: "No userId in metadata" };
+        }
+
+        // Upgrade user tier
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        await this.userRepository.updateTier(userId, "PRO", expiresAt);
+
+        this.logger.log(
+          `User ${userId} upgraded to PRO via Flutterwave Webhook (tx: ${id})`,
+        );
+
+        return { status: "success", message: "User upgraded" };
+      }
+    }
+
+    return { status: "ignored" };
   }
 
   private async ensureVerifiedEmail(userId: string) {

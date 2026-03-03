@@ -50,6 +50,8 @@ export const env = cleanEnv(process.env, {
 
   // Payments
   BASE_RPC_URL: str({ default: "https://mainnet.base.org" }),
+  ALCHEMY_API_KEY: str({ default: "" }),
+  INFURA_API_KEY: str({ default: "" }),
   ADMIN_WALLET_ADDRESS: str({
     default: "0x0000000000000000000000000000000000000000",
   }),
@@ -59,6 +61,13 @@ export const env = cleanEnv(process.env, {
   PAYSTACK_SECRET_KEY: str({ default: "" }),
   PAYSTACK_CALLBACK_URL: str({ default: "http://localhost:3000/settings" }),
   PRO_PRICE_USD: str({ default: "20" }),
+
+  // Flutterwave
+  FLUTTERWAVE_SECRET_KEY: str({ default: "" }),
+  FLUTTERWAVE_PUBLIC_KEY: str({ default: "" }),
+  FLUTTERWAVE_PLAN_ID: str({ default: "" }),
+  FLUTTERWAVE_REDIRECT_URL: str({ default: "http://localhost:3000/settings" }),
+  FLUTTERWAVE_WEBHOOK_HASH: str({ default: "" }),
 });
 
 export type Environment = typeof env;

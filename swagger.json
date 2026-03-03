@@ -3245,6 +3245,83 @@
           "Payments"
         ]
       }
+    },
+    "/api/v1/payments/flutterwave/initialize": {
+      "post": {
+        "operationId": "PaymentsController_initializeFlutterwave",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Initialize a Flutterwave payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/flutterwave/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyFlutterwave",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a Flutterwave payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/flutterwave/webhook": {
+      "post": {
+        "operationId": "PaymentsController_handleFlutterwaveWebhook",
+        "parameters": [
+          {
+            "name": "verf-hash",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "verif-hash",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Handle Flutterwave webhooks",
+        "tags": [
+          "Payments"
+        ]
+      }
     }
   },
   "info": {

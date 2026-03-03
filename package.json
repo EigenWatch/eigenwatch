@@ -21,7 +21,9 @@
     "prisma:generate:analytics": "prisma generate --schema=prisma/analytics/schema.prisma",
     "prisma:generate:user": "prisma generate --schema=prisma/user/schema.prisma",
     "prisma:pull:analytics": "prisma db pull --schema=prisma/analytics/schema.prisma",
-    "prisma:migrate:user": "prisma migrate dev --schema=prisma/user/schema.prisma --config=prisma.user.config.ts"
+    "prisma:migrate:user": "prisma migrate dev --schema=prisma/user/schema.prisma --config=prisma.user.config.ts",
+    "prisma:studio:user": "prisma studio --config=prisma.user.config.ts",
+    "prisma:studio:analytics": "prisma studio --config=prisma.analytics.config.ts"
   },
   "engines": {
     "npm": ">=10.0.0",
