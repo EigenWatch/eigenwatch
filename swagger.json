@@ -3322,6 +3322,36 @@
           "Payments"
         ]
       }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "FeedbackController_submitFeedback",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Submit user feedback",
+        "tags": [
+          "Feedback"
+        ]
+      }
     }
   },
   "info": {
@@ -3980,6 +4010,50 @@
         },
         "required": [
           "email"
+        ]
+      },
+      "CreateFeedbackDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GENERAL",
+              "INLINE",
+              "PAYWALL",
+              "FEATURE_REQUEST"
+            ]
+          },
+          "sentiment": {
+            "type": "string",
+            "enum": [
+              "POSITIVE",
+              "NEGATIVE"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Feedback category (e.g. data_quality, missing_feature)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Free-text feedback message"
+          },
+          "page_url": {
+            "type": "string",
+            "description": "Page URL where feedback was given"
+          },
+          "section_id": {
+            "type": "string",
+            "description": "Section identifier for inline feedback"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata (e.g. paywall selections)"
+          }
+        },
+        "required": [
+          "type"
         ]
       }
     }
