@@ -1,9 +1,10 @@
 import { IsOptional, IsEnum } from "class-validator";
 import { ApiPropertyOptional } from "@nestjs/swagger";
+import { PaginationDto } from "@/shared/dto/pagination.dto";
 
 export enum AVSStatus {
-  REGISTERED = "registered",
-  UNREGISTERED = "unregistered",
+  REGISTERED = "REGISTERED",
+  UNREGISTERED = "UNREGISTERED",
   ALL = "all",
 }
 
@@ -13,7 +14,7 @@ export enum AVSSortField {
   REGISTRATION_CYCLES = "registration_cycles",
 }
 
-export class ListOperatorAVSDto {
+export class ListOperatorAVSDto extends PaginationDto {
   @ApiPropertyOptional({ enum: AVSStatus, default: AVSStatus.REGISTERED })
   @IsOptional()
   @IsEnum(AVSStatus)

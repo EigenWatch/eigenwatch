@@ -3,17 +3,28 @@ import { OperatorsController } from "./operators.controller";
 import { OperatorMapper } from "./mappers/operator.mapper";
 import { OperatorService } from "./operators.service";
 import { PrismaOperatorRepository } from "./repositories/operators.repository";
+import { OperatorStrategyRepository } from "./repositories/operator-strategy.repository";
+import { OperatorDelegatorRepository } from "./repositories/operator-delegator.repository";
+import { OperatorAVSRepository } from "./repositories/operator-avs.repository";
+import { OperatorAllocationRepository } from "./repositories/operator-allocation.repository";
+import { OperatorAnalyticsRepository } from "./repositories/operator-analytics.repository";
+import { TokenMetadataService } from "@/core/services/token-metadata.service";
+import { AVSMetadataService } from "@/core/services/avs-metadata.service";
 
 @Module({
   controllers: [OperatorsController],
   providers: [
     OperatorService,
+    PrismaOperatorRepository,
+    OperatorStrategyRepository,
+    OperatorDelegatorRepository,
+    OperatorAVSRepository,
+    OperatorAllocationRepository,
+    OperatorAnalyticsRepository,
     OperatorMapper,
-    {
-      provide: "OperatorRepository",
-      useClass: PrismaOperatorRepository,
-    },
+    TokenMetadataService,
+    AVSMetadataService,
   ],
-  exports: [OperatorService],
+  exports: [OperatorService, AVSMetadataService],
 })
 export class OperatorsModule {}

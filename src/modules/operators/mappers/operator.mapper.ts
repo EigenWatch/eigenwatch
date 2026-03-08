@@ -19,21 +19,64 @@ import {
   AVSRelationshipDetail,
   AVSRegistrationHistoryItem,
 } from "../entities/avs.entities";
+import { OperatorRiskProfile } from "../entities/risk.entities";
+import {
+  CommissionOverviewResponseDto,
+  CommissionHistoryResponseDto,
+} from "../dto/commission-response.dto";
+import {
+  OperatorAllocationsOverview,
+  StrategyAllocationBreakdown,
+  AVSAllocationBreakdown,
+  AllocationRiskMetrics,
+  DetailedAllocationItem,
+  DetailedAllocationsResponse,
+  getUtilizationStatus,
+  getUtilizationRiskLevel,
+} from "../entities/allocation.entities";
+import {
+  DelegatorExposureResponse,
+  AVSExposure,
+  StrategyExposure,
+} from "../entities/delegator-exposure.entities";
+
+import { CacheService } from "@/core/cache/cache.service";
+import {
+  TokenMetadataService,
+  StrategyMetadata,
+} from "@/core/services/token-metadata.service";
+import {
+  AVSMetadataService,
+  AVSMetadata,
+} from "@/core/services/avs-metadata.service";
+import { OperatorStrategyRepository } from "../repositories/operator-strategy.repository";
 
 @Injectable()
 export class OperatorMapper {
+  // Cache for strategy metadata to avoid repeated lookups within a request
+  private strategyMetadataCache = new Map<string, StrategyMetadata | null>();
+  // Cache for AVS metadata to avoid repeated lookups within a request
+  private avsMetadataCache = new Map<string, AVSMetadata | null>();
+
+  constructor(
+    private cacheService: CacheService,
+    private tokenMetadataService: TokenMetadataService,
+    private avsMetadataService: AVSMetadataService,
+    private operatorStrategyRepository: OperatorStrategyRepository,
+  ) {}
   async mapToListItem(data: any): Promise<OperatorListItem> {
     const state = data.operator_state;
     const analytics = data.operator_analytics?.[0];
     const metadata = await this.getOperatorMetadataByUri(
-      data.operator_state?.current_metadata_uri || ""
+      data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
       operator_id: data.id,
       operator_address: data.address,
       is_active: state?.is_active ?? false,
-      total_tvs: this.calculateTotalTVS(data.operator_strategy_state),
+      total_tvs: state?.total_tvs?.toString() ?? "0",
       delegator_count: state?.active_delegators ?? 0,
       active_avs_count: state?.active_avs_count ?? 0,
       operational_days: state?.operational_days ?? 0,
@@ -49,7 +92,8 @@ export class OperatorMapper {
     const state = data.operator_state;
     const registration = data.operator_registration;
     const metadata = await this.getOperatorMetadataByUri(
-      data.operator_state?.current_metadata_uri || ""
+      data.operator_state?.current_metadata_uri || "",
+      data.operator_metadata?.metadata_json,
     );
 
     return {
@@ -77,21 +121,38 @@ export class OperatorMapper {
     };
   }
 
-  mapToStatistics(data: any): OperatorStatistics {
+  async mapToStatistics(data: any): Promise<OperatorStatistics> {
     const state = data.operator_state;
     const strategies = data.operator_strategy_state || [];
 
     // Calculate total shares from delegators
     const totalShares =
-      data.operator_delegator_shares?.reduce(
-        (sum: number, share: any) => sum + parseFloat(share.shares.toString()),
-        0
-      ) ?? 0;
+      data.operator_delegator_shares_sum !== undefined
+        ? parseFloat(data.operator_delegator_shares_sum.toString())
+        : (data.operator_delegator_shares?.reduce(
+            (sum: number, share: any) =>
+              sum + parseFloat(share.shares.toString()),
+            0,
+          ) ?? 0);
 
     return {
       tvs: {
-        total: this.calculateTotalTVS(strategies),
-        by_strategy: strategies.map((s: any) => this.mapStrategyBreakdown(s)),
+        // Use precomputed total_tvs from operator_state instead of summing max_magnitude
+        total: parseFloat(state?.total_tvs?.toString() ?? "0"),
+        by_strategy: await Promise.all(
+          strategies.map(async (s: any) => {
+            const delegatorCount =
+              await this.operatorStrategyRepository.countDelegatorsByStrategy(
+                data.id,
+                s.strategy_id,
+              );
+            return this.mapStrategyBreakdownAsync(
+              s,
+              parseFloat(state?.total_tvs?.toString() ?? "0"),
+              delegatorCount,
+            );
+          }),
+        ),
       },
       delegation: {
         total_delegators: state?.total_delegators ?? 0,
@@ -111,65 +172,178 @@ export class OperatorMapper {
     };
   }
 
-  private mapStrategyBreakdown(strategyState: any): StrategyBreakdown {
-    const maxMag = parseFloat(strategyState.max_magnitude.toString());
+  /**
+   * Async version of mapStrategyBreakdown that uses database lookups for strategy names
+   */
+  private async mapStrategyBreakdownAsync(
+    strategyState: any,
+    totalTvsUsd: number,
+    delegatorCount: number,
+  ): Promise<StrategyBreakdown> {
+    const address = strategyState.strategies?.address ?? "";
+    const tvsUsd = parseFloat(strategyState.tvs_usd?.toString() ?? "0");
+    const tvsPercentage = totalTvsUsd > 0 ? (tvsUsd / totalTvsUsd) * 100 : 0;
+
+    // Fetch token metadata
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(address);
+    const tokenMetadata = metadata
+      ? await this.tokenMetadataService.getTokenMetadata(
+          metadata.underlying_token_address || "",
+        )
+      : null;
+
+    const maxMag = parseFloat(strategyState.max_magnitude?.toString() ?? "0");
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude?.toString() ?? "0",
     );
-    const utilization = maxMag > 0 ? encumbered / maxMag : 0;
+    const utilizationRate = maxMag > 0 ? encumbered / maxMag : 0;
 
     return {
-      strategy_id: strategyState.strategy_id,
-      strategy_address: strategyState.strategies?.address ?? "",
-      strategy_name: this.getStrategyName(strategyState.strategies?.address),
-      max_magnitude: strategyState.max_magnitude.toString(),
-      encumbered_magnitude: strategyState.encumbered_magnitude.toString(),
-      utilization_rate: utilization.toFixed(4),
+      strategy_address: address,
+      token: {
+        name: metadata?.name || FormatUtils.formatAddress(address),
+        symbol: metadata?.symbol || "UNKNOWN",
+        logo_url: metadata?.logo_url || null,
+        decimals: tokenMetadata?.decimals ?? 18,
+      },
+      tvs_usd: parseFloat(tvsUsd.toFixed(2)),
+      tvs_percentage: parseFloat(tvsPercentage.toFixed(2)),
+      utilization_rate: parseFloat(utilizationRate.toFixed(4)),
+      delegator_count: delegatorCount,
     };
   }
 
+  /**
+   * @deprecated Use precomputed total_tvs from operator_state instead
+   */
   private calculateTotalTVS(strategies: any[]): string {
     if (!strategies || strategies.length === 0) return "0";
 
     const total = strategies.reduce(
       (sum, s) => sum + parseFloat(s.max_magnitude.toString()),
-      0
+      0,
     );
 
     return total.toString();
   }
 
-  // TODO: Review this might have to fetch the data from eigenlayer strategy manager contract (What happens when we are indexing diffrent chains tho)
+  /**
+   * @deprecated Use getStrategyNameAsync instead for proper database lookups
+   */
   private getStrategyName(address: string): string {
+    // Synchronous fallback - used when async is not available
+    // The async version should be preferred when possible
+    const cached = this.strategyMetadataCache.get(address?.toLowerCase());
+    if (cached) return cached.name;
+
     // Strategy name mapping - would be fetched from metadata or config
     const names: Record<string, string> = {
       // Add known strategy addresses and names
     };
-    return names[address?.toLowerCase()] || FormatUtils.formatAddress(address);
+    return (
+      names[address?.toLowerCase()] || FormatUtils.formatAddress(address || "")
+    );
+  }
+
+  /**
+   * Async method to get strategy name from database
+   * Preferred over getStrategyName when async is possible
+   */
+  async getStrategyNameAsync(address: string): Promise<string> {
+    if (!address) return "";
+
+    const lowerAddress = address.toLowerCase();
+
+    // Check local cache first
+    if (this.strategyMetadataCache.has(lowerAddress)) {
+      const cached = this.strategyMetadataCache.get(lowerAddress);
+      return cached?.name || FormatUtils.formatAddress(address);
+    }
+
+    // Fetch from TokenMetadataService
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(address);
+    this.strategyMetadataCache.set(lowerAddress, metadata);
+
+    return metadata?.name || FormatUtils.formatAddress(address);
+  }
+
+  /**
+   * Async method to get strategy symbol from database
+   */
+  async getStrategySymbolAsync(address: string): Promise<string> {
+    if (!address) return "UNKNOWN";
+
+    const lowerAddress = address.toLowerCase();
+
+    // Check local cache first
+    if (this.strategyMetadataCache.has(lowerAddress)) {
+      const cached = this.strategyMetadataCache.get(lowerAddress);
+      return cached?.symbol || "UNKNOWN";
+    }
+
+    // Fetch from TokenMetadataService
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(address);
+    this.strategyMetadataCache.set(lowerAddress, metadata);
+
+    return metadata?.symbol || "UNKNOWN";
+  }
+
+  /**
+   * Preload strategy metadata for a batch of addresses
+   * Call this before processing many strategies to minimize DB queries
+   */
+  async preloadStrategyMetadata(addresses: string[]): Promise<void> {
+    const uniqueAddresses = [...new Set(addresses.filter(Boolean))];
+    const uncached = uniqueAddresses.filter(
+      (addr) => !this.strategyMetadataCache.has(addr.toLowerCase()),
+    );
+
+    if (uncached.length === 0) return;
+
+    const metadataMap =
+      await this.tokenMetadataService.getStrategyMetadataBatch(uncached);
+    for (const [address, metadata] of metadataMap) {
+      this.strategyMetadataCache.set(address.toLowerCase(), metadata);
+    }
+  }
+
+  /**
+   * Clear the local strategy metadata cache
+   */
+  clearStrategyMetadataCache(): void {
+    this.strategyMetadataCache.clear();
   }
 
   mapToStrategyListItem(
     strategyState: any,
-    delegatorCount: number
+    delegatorCount: number,
   ): OperatorStrategyListItem {
     const maxMag = parseFloat(strategyState.max_magnitude.toString());
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude.toString(),
     );
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
+    const address = strategyState.strategies?.address ?? "";
+    const cached = address
+      ? this.strategyMetadataCache.get(address.toLowerCase())
+      : null;
+
     return {
       strategy_id: strategyState.strategy_id,
-      strategy_address: strategyState.strategies?.address ?? "",
-      strategy_name: this.getStrategyName(strategyState.strategies?.address),
-      strategy_symbol: this.getStrategySymbol(
-        strategyState.strategies?.address
-      ),
+      strategy_address: address,
+      strategy_name: this.getStrategyName(address),
+      strategy_symbol: this.getStrategySymbol(address),
+      strategy_logo: cached?.logo_url ?? null,
       max_magnitude: strategyState.max_magnitude.toString(),
       encumbered_magnitude: strategyState.encumbered_magnitude.toString(),
       available_magnitude: available.toString(),
       utilization_rate: utilization.toFixed(4),
+      tvs_usd: strategyState.tvs_usd?.toString() ?? "0",
       last_updated_at: strategyState.updated_at?.toISOString() ?? "",
       delegator_count: delegatorCount,
     };
@@ -180,11 +354,11 @@ export class OperatorMapper {
     strategyState: any,
     allocations: any[],
     delegators: any[],
-    totalShares: string
+    totalShares: string,
   ): OperatorStrategyDetail {
     const maxMag = parseFloat(strategyState.max_magnitude.toString());
     const encumbered = parseFloat(
-      strategyState.encumbered_magnitude.toString()
+      strategyState.encumbered_magnitude.toString(),
     );
     const available = maxMag - encumbered;
     const utilization = maxMag > 0 ? encumbered / maxMag : 0;
@@ -206,7 +380,7 @@ export class OperatorMapper {
     const sortedDelegators = delegators
       .sort(
         (a, b) =>
-          parseFloat(b.shares.toString()) - parseFloat(a.shares.toString())
+          parseFloat(b.shares.toString()) - parseFloat(a.shares.toString()),
       )
       .slice(0, 10);
 
@@ -217,7 +391,7 @@ export class OperatorMapper {
       percentage:
         totalSharesNum > 0
           ? ((parseFloat(d.shares.toString()) / totalSharesNum) * 100).toFixed(
-              2
+              2,
             )
           : "0",
     }));
@@ -243,22 +417,49 @@ export class OperatorMapper {
   }
 
   private getStrategySymbol(address: string): string {
-    // Strategy symbol mapping
-    const symbols: Record<string, string> = {
-      // Add known strategy addresses and symbols
-    };
-    return symbols[address?.toLowerCase()] || "UNKNOWN";
+    if (!address) return "UNKNOWN";
+    const cached = this.strategyMetadataCache.get(address.toLowerCase());
+    if (cached) return cached.symbol || "UNKNOWN";
+    return "UNKNOWN";
   }
 
   // TODO: Optimise how we handle getting metadata
   private async getOperatorMetadataByUri(
-    uri: string
+    uri: string,
+    metadataJson?: any,
   ): Promise<OperatorMetadata | null> {
     try {
-      // Only fetch if it's a fully qualified HTTP(S) URL
+      // 1. Try pre-fetched metadata_json from operator_metadata table (already in query result)
+      if (metadataJson && typeof metadataJson === "object") {
+        const metadata: OperatorMetadata = {
+          name: metadataJson.name ?? "",
+          website: metadataJson.website ?? "",
+          description: metadataJson.description ?? "",
+          logo: metadataJson.logo ?? "",
+          twitter: metadataJson.twitter ?? "",
+        };
+
+        // Cache it so future calls don't even need the DB result
+        if (uri) {
+          const cacheKey = `metadata:${uri}`;
+          await this.cacheService.set(cacheKey, metadata, 432000);
+        }
+
+        return metadata;
+      }
+
+      // Only fetch via HTTP if it's a fully qualified HTTP(S) URL
       if (!uri.startsWith("http")) return null;
 
-      const { data } = await axios.get(uri);
+      const cacheKey = `metadata:${uri}`;
+      const cached = await this.cacheService.get<OperatorMetadata>(cacheKey);
+
+      if (cached) {
+        return cached;
+      }
+
+      // 2. HTTP fallback with timeout to prevent hanging
+      const { data } = await axios.get(uri, { timeout: 5000 });
 
       // Validate and normalize the returned metadata structure
       const metadata: OperatorMetadata = {
@@ -269,9 +470,14 @@ export class OperatorMapper {
         twitter: data.twitter ?? "",
       };
 
+      await this.cacheService.set(cacheKey, metadata, 432000); // 5 days TTL
+
       return metadata;
     } catch (error) {
-      console.error("Failed to fetch operator metadata:", error);
+      console.error(
+        "Failed to fetch operator metadata:",
+        error?.message || error,
+      );
       return null;
     }
   }
@@ -289,15 +495,18 @@ export class OperatorMapper {
       description: "",
     };
 
-    console.log({ activity });
-
     switch (activity.type) {
       case "registration":
+        const avsName = activity.data.avs
+          ? this.getAVSName(activity.data.avs.address)
+          : "Unknown AVS";
         return {
           ...baseActivity,
-          description: "Operator registered",
+          description: `Registered with ${avsName}`,
           details: {
             delegation_approver: activity.data.delegation_approver,
+            avs_address: activity.data.avs?.address,
+            avs_name: avsName,
           },
         };
 
@@ -326,15 +535,19 @@ export class OperatorMapper {
         };
 
       case "commission":
+        const commAvsName = activity.data.avs
+          ? this.getAVSName(activity.data.avs.address)
+          : "Unknown AVS";
         return {
           ...baseActivity,
-          description: `Commission rate changed from ${activity.data.old_bips} to ${activity.data.new_bips} bips`,
+          description: `Commission rate to ${commAvsName} changed from ${activity.data.old_bips} to ${activity.data.new_bips} bips`,
           details: {
             commission_type: activity.data.commission_type,
             old_bips: activity.data.old_bips,
             new_bips: activity.data.new_bips,
             change_delta: activity.data.change_delta,
             avs_address: activity.data.avs?.address,
+            avs_name: commAvsName,
             activated_at: activity.data.activated_at.toISOString(),
           },
         };
@@ -354,7 +567,7 @@ export class OperatorMapper {
           activity.data.operator_slashing_amounts?.reduce(
             (sum: number, amt: any) =>
               sum + parseFloat(amt.wad_slashed.toString()),
-            0
+            0,
           ) || 0;
         return {
           ...baseActivity,
@@ -366,7 +579,7 @@ export class OperatorMapper {
               (amt: any) => ({
                 strategy_address: amt.strategies?.address,
                 wad_slashed: amt.wad_slashed.toString(),
-              })
+              }),
             ),
           },
         };
@@ -401,7 +614,7 @@ export class OperatorMapper {
   mapToAVSRelationshipDetail(
     relationship: any,
     operatorSets: any[],
-    commissions: any[]
+    commissions: any[],
   ): AVSRelationshipDetail {
     // Map operator sets
     const mappedOperatorSets = operatorSets.map((set) => ({
@@ -461,10 +674,10 @@ export class OperatorMapper {
       if (index > 0) {
         const currentTime = new Date(item.status_changed_at).getTime();
         const previousTime = new Date(
-          history[index - 1].status_changed_at
+          history[index - 1].status_changed_at,
         ).getTime();
         durationSincePrevious = Math.floor(
-          (currentTime - previousTime) / (1000 * 60 * 60 * 24)
+          (currentTime - previousTime) / (1000 * 60 * 60 * 24),
         );
       }
 
@@ -478,34 +691,104 @@ export class OperatorMapper {
     });
   }
 
-  private getAVSName(address: string): string {
-    // AVS name mapping - would be fetched from metadata or config
-    const names: Record<string, string> = {
-      // Add known AVS addresses and names
-    };
-    return names[address?.toLowerCase()] || FormatUtils.formatAddress(address);
+  private getAVSName(avsIdOrAddress: string): string {
+    if (!avsIdOrAddress) return "Unknown AVS";
+
+    // Check AVS metadata cache by ID first
+    const lowerId = avsIdOrAddress.toLowerCase();
+    const cachedById = this.avsMetadataCache.get(lowerId);
+    if (cachedById?.name) return cachedById.name;
+
+    // Check if any cached metadata matches by address
+    for (const [, metadata] of this.avsMetadataCache) {
+      if (metadata?.avs_address?.toLowerCase() === lowerId && metadata?.name) {
+        return metadata.name;
+      }
+    }
+
+    return FormatUtils.formatAddress(avsIdOrAddress);
   }
 
-  private getAVSLogo(address: string): string {
-    // AVS logo mapping
-    const logos: Record<string, string> = {
-      // Add known AVS addresses and logos
-    };
-    return logos[address?.toLowerCase()] || "";
+  private getAVSLogo(avsIdOrAddress: string): string {
+    if (!avsIdOrAddress) return "";
+
+    // Check AVS metadata cache by ID first
+    const lowerId = avsIdOrAddress.toLowerCase();
+    const cachedById = this.avsMetadataCache.get(lowerId);
+    if (cachedById?.logo) return cachedById.logo;
+
+    // Check if any cached metadata matches by address
+    for (const [, metadata] of this.avsMetadataCache) {
+      if (metadata?.avs_address?.toLowerCase() === lowerId && metadata?.logo) {
+        return metadata.logo;
+      }
+    }
+
+    return "";
   }
 
   // ============================================================================
   // COMMISSION MAPPERS (Endpoints 10-11)
   // ============================================================================
 
-  mapToCommissionOverview(commissions: any[]): any {
-    // Filter by commission type
-    const piCommission = commissions.find((c) => c.commission_type === "pi");
-    const avsCommissions = commissions.filter(
-      (c) => c.commission_type === "avs"
+  mapToCommissionOverview(data: {
+    rates: any[];
+    stats: {
+      max_historical_bips: number;
+      changes_last_12m: number;
+      last_change_date: Date | null;
+    };
+    network_benchmarks: {
+      mean_pi_commission_bips: number;
+      median_pi_commission_bips: number;
+      p25_pi_commission_bips: number;
+      p75_pi_commission_bips: number;
+      p90_pi_commission_bips: number;
+    } | null;
+    allocations?: any[];
+  }): CommissionOverviewResponseDto {
+    const { rates, stats, network_benchmarks, allocations = [] } = data;
+
+    // Filter by commission type (case-insensitive to handle DB uppercase values)
+    const piCommission = rates.find(
+      (c) => c.commission_type?.toLowerCase() === "pi",
     );
-    const operatorSetCommissions = commissions.filter(
-      (c) => c.commission_type === "operator_set"
+    const avsCommissions = rates.filter(
+      (c) => c.commission_type?.toLowerCase() === "avs",
+    );
+    const operatorSetCommissions = rates.filter(
+      (c) => c.commission_type?.toLowerCase() === "operator_set",
+    );
+
+    // Calculate days since last change
+    let daysSinceLastChange = 0;
+    if (stats.last_change_date) {
+      const diffTime = Math.abs(
+        new Date().getTime() - stats.last_change_date.getTime(),
+      );
+      daysSinceLastChange = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } else {
+      daysSinceLastChange = 0;
+    }
+
+    // Check for pending changes
+    const isChangePending = rates.some(
+      (c) => c.upcoming_bips !== null || c.upcoming_activated_at !== null,
+    );
+
+    // Calculate max historical bips
+    const currentMaxBips = Math.max(...rates.map((c) => c.current_bips), 0);
+    const maxHistoricalBips = Math.max(
+      stats.max_historical_bips,
+      currentMaxBips,
+    );
+
+    // Calculate impact analysis
+    const impactAnalysis = this.calculateCommissionImpactAnalysis(
+      allocations,
+      rates,
+      piCommission?.current_bips || 0,
+      network_benchmarks,
     );
 
     return {
@@ -519,10 +802,13 @@ export class OperatorMapper {
       avs_commissions: avsCommissions.map((c) => ({
         avs_id: c.avs_id,
         avs_name: this.getAVSName(c.avs?.address),
+        avs_logo: this.getAVSLogo(c.avs?.address),
         current_bips: c.current_bips,
         activated_at: c.current_activated_at.toISOString(),
         upcoming_bips: c.upcoming_bips,
         upcoming_activated_at: c.upcoming_activated_at?.toISOString() || null,
+        total_changes: c.total_changes || 0,
+        first_set_at: c.first_set_at?.toISOString() || null,
       })),
       operator_set_commissions: operatorSetCommissions.map((c) => ({
         operator_set_id: c.operator_set_id,
@@ -531,10 +817,145 @@ export class OperatorMapper {
         current_bips: c.current_bips,
         activated_at: c.current_activated_at.toISOString(),
       })),
+      behavior_profile: {
+        days_since_last_change: daysSinceLastChange,
+        changes_last_12m: stats.changes_last_12m,
+        max_historical_bips: maxHistoricalBips,
+        is_change_pending: isChangePending,
+      },
+      network_benchmarks: network_benchmarks || {
+        mean_pi_commission_bips: 0,
+        median_pi_commission_bips: 0,
+        p25_pi_commission_bips: 0,
+        p75_pi_commission_bips: 0,
+        p90_pi_commission_bips: 0,
+      },
+      impact_analysis: impactAnalysis,
     };
   }
 
-  mapToCommissionHistory(history: any[]): any {
+  /**
+   * Calculate commission impact analysis based on allocations
+   */
+  private calculateCommissionImpactAnalysis(
+    allocations: any[],
+    rates: any[],
+    piCommissionBips: number,
+    networkBenchmarks: any,
+  ): any {
+    // Build maps for quick lookup
+    const avsCommissionMap = new Map<string, number>();
+    const osCommissionMap = new Map<string, number>();
+
+    for (const rate of rates) {
+      const type = rate.commission_type?.toLowerCase();
+      if (type === "avs" && rate.avs_id) {
+        avsCommissionMap.set(rate.avs_id, rate.current_bips);
+      } else if (type === "operator_set" && rate.operator_set_id) {
+        osCommissionMap.set(rate.operator_set_id, rate.current_bips);
+      }
+    }
+
+    // Calculate weighted average and breakdown
+    let totalUsd = 0;
+    let weightedSum = 0;
+    const sourceBreakdown = {
+      pi: { usd: 0 },
+      avs: { usd: 0 },
+      operator_set: { usd: 0 },
+    };
+
+    for (const alloc of allocations) {
+      const usd = parseFloat(alloc.magnitude_usd?.toString() || "0");
+      if (usd <= 0) continue;
+
+      totalUsd += usd;
+
+      // Determine which commission applies (operator_set > avs > pi)
+      let applicableBips = piCommissionBips;
+      let source: "pi" | "avs" | "operator_set" = "pi";
+
+      if (osCommissionMap.has(alloc.operator_set_id)) {
+        applicableBips = osCommissionMap.get(alloc.operator_set_id)!;
+        source = "operator_set";
+      } else if (avsCommissionMap.has(alloc.operator_sets?.avs_id)) {
+        applicableBips = avsCommissionMap.get(alloc.operator_sets.avs_id)!;
+        source = "avs";
+      }
+
+      weightedSum += usd * applicableBips;
+      sourceBreakdown[source].usd += usd;
+    }
+
+    const weightedAvgBips =
+      totalUsd > 0 ? weightedSum / totalUsd : piCommissionBips;
+
+    // Determine comparison to network average
+    let vsNetworkAverage: "lower" | "similar" | "higher" = "similar";
+    if (networkBenchmarks) {
+      const median = networkBenchmarks.median_pi_commission_bips || 0;
+      const tolerance = median * 0.1;
+      if (weightedAvgBips < median - tolerance) {
+        vsNetworkAverage = "lower";
+      } else if (weightedAvgBips > median + tolerance) {
+        vsNetworkAverage = "higher";
+      }
+    }
+
+    // Calculate percentile rank (lower commission = higher rank)
+    let percentileRank = 50;
+    if (networkBenchmarks) {
+      const {
+        p25_pi_commission_bips,
+        median_pi_commission_bips,
+        p75_pi_commission_bips,
+        p90_pi_commission_bips,
+      } = networkBenchmarks;
+      if (weightedAvgBips <= p25_pi_commission_bips) {
+        percentileRank = 75;
+      } else if (weightedAvgBips <= median_pi_commission_bips) {
+        percentileRank = 50;
+      } else if (weightedAvgBips <= p75_pi_commission_bips) {
+        percentileRank = 25;
+      } else if (weightedAvgBips <= p90_pi_commission_bips) {
+        percentileRank = 10;
+      } else {
+        percentileRank = 5;
+      }
+    }
+
+    return {
+      weighted_average_commission_bips: Math.round(weightedAvgBips),
+      weighted_average_commission_pct: (weightedAvgBips / 100).toFixed(2),
+      allocation_by_commission_source: {
+        pi: {
+          usd_amount: sourceBreakdown.pi.usd.toFixed(2),
+          pct_of_total:
+            totalUsd > 0
+              ? ((sourceBreakdown.pi.usd / totalUsd) * 100).toFixed(2)
+              : "100.00",
+        },
+        avs: {
+          usd_amount: sourceBreakdown.avs.usd.toFixed(2),
+          pct_of_total:
+            totalUsd > 0
+              ? ((sourceBreakdown.avs.usd / totalUsd) * 100).toFixed(2)
+              : "0.00",
+        },
+        operator_set: {
+          usd_amount: sourceBreakdown.operator_set.usd.toFixed(2),
+          pct_of_total:
+            totalUsd > 0
+              ? ((sourceBreakdown.operator_set.usd / totalUsd) * 100).toFixed(2)
+              : "0.00",
+        },
+      },
+      vs_network_average: vsNetworkAverage,
+      percentile_rank: percentileRank,
+    };
+  }
+
+  mapToCommissionHistory(history: any[]): CommissionHistoryResponseDto {
     return {
       changes: history.map((item) => ({
         commission_type: item.commission_type,
@@ -556,14 +977,37 @@ export class OperatorMapper {
   // DELEGATOR MAPPERS (Endpoints 12-14)
   // ============================================================================
 
-  mapToDelegatorListItem(delegator: any, totalShares: string): any {
-    // Calculate shares percentage (would need total operator shares)
-    const strategies = (delegator.operator_delegator_shares || []).map(
-      (share: any) => ({
-        strategy_id: share.strategy_id,
-        strategy_name: this.getStrategyName(share.strategies?.address),
-        shares: share.shares.toString(),
-      })
+  async mapToDelegatorListItem(
+    delegator: any,
+    totalShares: string,
+    totalTVS: number = 0,
+  ): Promise<any> {
+    // Collect all strategy addresses to preload metadata if possible
+    // The repository already flattens shares into delegator.strategies
+    const strategiesData = delegator.strategies || [];
+    const strategyAddresses = strategiesData
+      .map((s: any) => s.strategy?.address || s.strategies?.address)
+      .filter(Boolean);
+
+    // Ideally we would preload here, but let's just use the async getters for each
+    // This might be slightly slower but correct. Batching should happen at service level if needed.
+
+    const strategies = await Promise.all(
+      strategiesData.map(async (share: any) => {
+        const address =
+          share.strategy?.address || share.strategies?.address || "";
+        const metadata =
+          await this.tokenMetadataService.getStrategyMetadata(address);
+
+        return {
+          strategy_id: share.strategy_id,
+          strategy_name: metadata?.name || this.getStrategyName(address),
+          strategy_symbol: metadata?.symbol || "UNKNOWN",
+          strategy_logo: metadata?.logo_url || "",
+          shares: (share.shares || 0).toString(),
+          tvs: share.tvs?.toString() || (share.tvs_usd?.toString() ?? "0"),
+        };
+      }),
     );
 
     return {
@@ -573,7 +1017,8 @@ export class OperatorMapper {
       delegated_at: delegator.delegated_at?.toISOString() || null,
       undelegated_at: delegator.undelegated_at?.toISOString() || null,
       total_shares: totalShares,
-      shares_percentage: "0", // Would need to calculate against total operator shares
+      total_tvs: totalTVS.toString(),
+      tvs_share_percentage: Number(delegator.tvs_share_pct ?? 0).toString(),
       strategies,
     };
   }
@@ -581,7 +1026,7 @@ export class OperatorMapper {
   mapToDelegatorDetail(delegator: any): any {
     const totalShares = (delegator.operator_delegator_shares || []).reduce(
       (sum: number, share: any) => sum + parseFloat(share.shares.toString()),
-      0
+      0,
     );
 
     let delegationDurationDays = null;
@@ -591,7 +1036,7 @@ export class OperatorMapper {
         ? new Date(delegator.undelegated_at)
         : new Date();
       delegationDurationDays = Math.floor(
-        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
     }
 
@@ -613,7 +1058,7 @@ export class OperatorMapper {
           shares_percentage: percentage,
           last_updated_at: share.updated_at?.toISOString() || "",
         };
-      }
+      },
     );
 
     return {
@@ -629,6 +1074,212 @@ export class OperatorMapper {
       },
       shares_by_strategy: sharesByStrategy,
       total_shares: totalShares.toString(),
+    };
+  }
+
+  /**
+   * Map delegator data with operator allocations to exposure analysis
+   * Shows delegator's risk exposure across AVS and strategies
+   */
+  async mapToDelegatorExposure(
+    delegator: any,
+    allocationsData: {
+      allocations: any[];
+      strategyState: any[];
+      avsSummary: any[];
+      commissionRates: any[];
+    },
+    operatorMetadata: any,
+  ): Promise<DelegatorExposureResponse> {
+    const { allocations, strategyState, avsSummary } = allocationsData;
+
+    // Calculate total delegated USD from delegator's shares
+    const delegatorStrategies = delegator.strategies || [];
+    let totalDelegatedUsd = 0;
+
+    // Preload strategy metadata
+    const strategyAddresses = [
+      ...new Set([
+        ...delegatorStrategies
+          .map((s: any) => s.strategy?.address)
+          .filter(Boolean),
+        ...strategyState.map((s: any) => s.strategies?.address).filter(Boolean),
+      ]),
+    ];
+    await this.preloadStrategyMetadata(strategyAddresses);
+
+    // Preload AVS metadata
+    const avsIds = [
+      ...new Set(
+        allocations.map((a: any) => a.operator_sets?.avs_id).filter(Boolean),
+      ),
+    ];
+    await this.preloadAVSMetadata(avsIds);
+
+    // Build a map of strategy_id -> delegator's TVS in that strategy
+    const delegatorTvsByStrategy = new Map<string, number>();
+    for (const s of delegatorStrategies) {
+      const tvs = parseFloat(s.tvs?.toString() || "0");
+      delegatorTvsByStrategy.set(s.strategy?.id || s.strategy_id, tvs);
+      totalDelegatedUsd += tvs;
+    }
+
+    // Build strategy state map for utilization rates
+    const strategyStateMap = new Map<string, any>();
+    for (const state of strategyState) {
+      strategyStateMap.set(state.strategy_id, state);
+    }
+
+    // Calculate exposure by AVS
+    // For each AVS, sum up the delegator's proportional exposure based on allocations
+    const avsExposureMap = new Map<
+      string,
+      {
+        avs_id: string;
+        avs_name: string;
+        avs_logo: string | null;
+        exposed_usd: number;
+      }
+    >();
+
+    // For each allocation, calculate delegator's exposure
+    for (const alloc of allocations) {
+      const avsId = alloc.operator_sets?.avs_id;
+      const avsName = this.getAVSName(avsId);
+      const avsLogo = this.getAVSLogo(avsId) || null;
+      const strategyId = alloc.strategy_id;
+
+      // Get delegator's TVS in this strategy
+      const delegatorTvs = delegatorTvsByStrategy.get(strategyId) || 0;
+      if (delegatorTvs === 0) continue;
+
+      // Get operator's strategy state for this strategy
+      const state = strategyStateMap.get(strategyId);
+      if (!state) continue;
+
+      // Calculate what portion of delegator's TVS is allocated to this AVS
+      // using the magnitude ratio from the allocation
+      const magnitude = parseFloat(alloc.magnitude?.toString() || "0");
+      const maxMagnitude = parseFloat(
+        state.max_magnitude?.toString() || "1000000000000000000",
+      );
+      const magnitudeRatio = maxMagnitude > 0 ? magnitude / maxMagnitude : 0;
+
+      // Delegator's exposure to this allocation = their TVS × allocation ratio
+      const exposedUsd = delegatorTvs * magnitudeRatio;
+
+      // Aggregate by AVS
+      const existing = avsExposureMap.get(avsId);
+      if (existing) {
+        existing.exposed_usd += exposedUsd;
+      } else {
+        avsExposureMap.set(avsId, {
+          avs_id: avsId,
+          avs_name: avsName,
+          avs_logo: avsLogo,
+          exposed_usd: exposedUsd,
+        });
+      }
+    }
+
+    // Convert AVS exposure map to array with percentages and slashing risk
+    const exposureByAvs: AVSExposure[] = Array.from(avsExposureMap.values())
+      .map((avs) => {
+        const exposurePct =
+          totalDelegatedUsd > 0
+            ? (avs.exposed_usd / totalDelegatedUsd) * 100
+            : 0;
+        // Assuming max slashing is 100% of exposed amount (conservative estimate)
+        // In reality, this would come from AVS slashing parameters
+        const maxSlashingPct = 100;
+        const maxSlashingUsd = avs.exposed_usd;
+
+        return {
+          avs_id: avs.avs_id,
+          avs_name: avs.avs_name,
+          avs_logo: avs.avs_logo,
+          exposed_usd: avs.exposed_usd.toFixed(2),
+          exposure_pct: exposurePct.toFixed(2),
+          max_slashing_pct: maxSlashingPct.toFixed(2),
+          max_slashing_usd: maxSlashingUsd.toFixed(2),
+        };
+      })
+      .sort((a, b) => parseFloat(b.exposed_usd) - parseFloat(a.exposed_usd));
+
+    // Calculate exposure by strategy
+    const exposureByStrategy: StrategyExposure[] = await Promise.all(
+      delegatorStrategies.map(async (s: any) => {
+        const strategyId = s.strategy?.id || s.strategy_id;
+        const strategyAddress = s.strategy?.address;
+        const metadata = await this.getStrategyMetadataAsync(strategyAddress);
+
+        const delegatorShares = s.shares?.toString() || "0";
+        const delegatorTvs = parseFloat(s.tvs?.toString() || "0");
+
+        // Get utilization from operator's strategy state
+        const state = strategyStateMap.get(strategyId);
+        const utilization = parseFloat(
+          state?.utilization_rate?.toString() || "0",
+        );
+
+        // At-risk USD = delegator's TVS × utilization rate (allocated portion)
+        const atRiskUsd = delegatorTvs * (utilization / 100);
+
+        return {
+          strategy_id: strategyId,
+          strategy_symbol: metadata?.symbol || "UNKNOWN",
+          strategy_logo: metadata?.logo_url || null,
+          delegator_shares: delegatorShares,
+          delegator_tvs_usd: delegatorTvs.toFixed(2),
+          utilization_pct: utilization.toFixed(2),
+          at_risk_usd: atRiskUsd.toFixed(2),
+        };
+      }),
+    );
+
+    // Calculate risk summary
+    const totalAtRiskUsd = exposureByStrategy.reduce(
+      (sum, s) => sum + parseFloat(s.at_risk_usd),
+      0,
+    );
+    const atRiskPct =
+      totalDelegatedUsd > 0 ? (totalAtRiskUsd / totalDelegatedUsd) * 100 : 0;
+
+    // Find highest AVS exposure
+    const highestAvs = exposureByAvs[0] || {
+      avs_name: "N/A",
+      exposed_usd: "0.00",
+    };
+
+    // Calculate diversification score (inverse of HHI, normalized 0-100)
+    // HHI = sum of squared market shares; lower HHI = more diversified
+    const avsShares = exposureByAvs.map((a) =>
+      totalDelegatedUsd > 0 ? parseFloat(a.exposed_usd) / totalDelegatedUsd : 0,
+    );
+    const hhi = avsShares.reduce((sum, share) => sum + share * share, 0);
+    // Diversification score: 100 when perfectly diversified, lower when concentrated
+    // HHI ranges from 1/n (perfectly diversified) to 1 (fully concentrated)
+    const diversificationScore = Math.round((1 - hhi) * 100);
+
+    return {
+      delegator: {
+        staker_id: delegator.staker_id,
+        staker_address: delegator.stakers?.address || "",
+        total_delegated_usd: totalDelegatedUsd.toFixed(2),
+      },
+      operator: {
+        operator_id: operatorMetadata?.id || "",
+        operator_name: operatorMetadata?.metadata?.name || null,
+      },
+      exposure_by_avs: exposureByAvs,
+      exposure_by_strategy: exposureByStrategy,
+      risk_summary: {
+        total_at_risk_usd: totalAtRiskUsd.toFixed(2),
+        at_risk_pct: atRiskPct.toFixed(2),
+        highest_avs_exposure_name: highestAvs.avs_name,
+        highest_avs_exposure_usd: highestAvs.exposed_usd,
+        diversification_score: diversificationScore,
+      },
     };
   }
 
@@ -648,112 +1299,406 @@ export class OperatorMapper {
   // ALLOCATION MAPPERS (Endpoints 15-16)
   // ============================================================================
 
-  mapToAllocationsOverview(data: any): any {
-    const { allocations, strategyStates } = data;
+  /**
+   * Map allocation data to enhanced overview response
+   * Uses USD values instead of summing magnitudes
+   */
+  async mapToAllocationsOverview(data: {
+    allocations: any[];
+    strategyState: any[];
+    avsSummary: any[];
+    commissionRates: any[];
+  }): Promise<OperatorAllocationsOverview> {
+    const { allocations, strategyState, avsSummary } = data;
 
-    // Group by AVS
-    const byAVSMap = new Map<string, any>();
-    allocations.forEach((alloc: any) => {
-      const avsId = alloc.operator_sets.avs_id;
-      if (!byAVSMap.has(avsId)) {
-        byAVSMap.set(avsId, {
+    // Preload strategy metadata for all strategies
+    const strategyAddresses = [
+      ...new Set(
+        allocations.map((a: any) => a.strategies?.address).filter(Boolean),
+      ),
+    ];
+    await this.preloadStrategyMetadata(strategyAddresses);
+
+    // Preload AVS metadata for all AVS
+    const avsIds = [
+      ...new Set(
+        allocations.map((a: any) => a.operator_sets?.avs_id).filter(Boolean),
+      ),
+    ];
+    await this.preloadAVSMetadata(avsIds);
+
+    // Build strategy breakdown from operator_strategy_state (has TVS)
+    const byStrategy: StrategyAllocationBreakdown[] = await Promise.all(
+      strategyState.map(async (state: any) => {
+        const metadata = await this.getStrategyMetadataAsync(
+          state.strategies?.address,
+        );
+        const tvs = parseFloat(state.tvs_usd?.toString() || "0");
+        const utilization = parseFloat(
+          state.utilization_rate?.toString() || "0",
+        );
+
+        // Calculate allocated USD based on utilization
+        const allocatedUsd = tvs * (utilization / 100);
+        const availableUsd = tvs - allocatedUsd;
+
+        // Count how many AVS use this strategy
+        const avsCount = new Set(
+          allocations
+            .filter((a: any) => a.strategy_id === state.strategy_id)
+            .map((a: any) => a.operator_sets?.avs_id),
+        ).size;
+
+        return {
+          strategy_id: state.strategy_id,
+          strategy_address: state.strategies?.address || "",
+          strategy_symbol: metadata?.symbol || "UNKNOWN",
+          strategy_logo: metadata?.logo_url || null,
+          tvs_usd: tvs.toFixed(2),
+          allocated_usd: allocatedUsd.toFixed(2),
+          available_usd: availableUsd.toFixed(2),
+          utilization_pct: utilization.toFixed(2),
+          utilization_status: getUtilizationStatus(utilization),
+          avs_count: avsCount,
+        };
+      }),
+    );
+
+    // Build AVS breakdown from allocations + avsSummary
+    const avsMap = new Map<string, any>();
+    for (const alloc of allocations) {
+      const avsId = alloc.operator_sets?.avs_id;
+      if (!avsId) continue;
+
+      if (!avsMap.has(avsId)) {
+        avsMap.set(avsId, {
           avs_id: avsId,
-          avs_name: this.getAVSName(alloc.operator_sets.avs.address),
-          total_allocated: 0,
-          operator_set_count: new Set(),
-          strategies: new Map(),
+          avs_address: alloc.operator_sets?.avs?.address || "",
+          avs_name: this.getAVSName(alloc.operator_sets?.avs?.address),
+          avs_logo: this.getAVSLogo(alloc.operator_sets?.avs?.address),
+          total_allocated_usd: 0,
+          operator_set_ids: new Set<string>(),
+          strategies: new Map<string, { symbol: string; usd: number }>(),
         });
       }
 
-      const avsData = byAVSMap.get(avsId)!;
-      avsData.total_allocated += parseFloat(alloc.magnitude.toString());
-      avsData.operator_set_count.add(alloc.operator_set_id);
+      const avsData = avsMap.get(avsId);
+      avsData.operator_set_ids.add(alloc.operator_set_id);
+
+      // Get USD value from allocation or calculate from avsSummary
+      const allocUsd = parseFloat(alloc.magnitude_usd?.toString() || "0");
+      avsData.total_allocated_usd += allocUsd;
 
       const strategyId = alloc.strategy_id;
+      const metadata = await this.getStrategyMetadataAsync(
+        alloc.strategies?.address,
+      );
       if (!avsData.strategies.has(strategyId)) {
         avsData.strategies.set(strategyId, {
-          strategy_id: strategyId,
-          strategy_name: this.getStrategyName(alloc.strategies?.address),
-          allocated_magnitude: 0,
+          symbol: metadata?.symbol || "UNKNOWN",
+          usd: 0,
         });
       }
-      avsData.strategies.get(strategyId).allocated_magnitude += parseFloat(
-        alloc.magnitude.toString()
-      );
-    });
+      avsData.strategies.get(strategyId).usd += allocUsd;
+    }
 
-    const byAVS = Array.from(byAVSMap.values()).map((avs) => ({
-      avs_id: avs.avs_id,
-      avs_name: avs.avs_name,
-      total_allocated: avs.total_allocated.toString(),
-      operator_set_count: avs.operator_set_count.size,
-      strategies: Array.from(avs.strategies.values()).map((s: any) => ({
-        ...s,
-        allocated_magnitude: s.allocated_magnitude.toString(),
-      })),
-    }));
-
-    // Group by strategy
-    const byStrategyMap = new Map<string, any>();
-    allocations.forEach((alloc: any) => {
-      const strategyId = alloc.strategy_id;
-      if (!byStrategyMap.has(strategyId)) {
-        const state = strategyStates.find(
-          (s: any) => s.strategy_id === strategyId
-        );
-        byStrategyMap.set(strategyId, {
-          strategy_id: strategyId,
-          strategy_name: this.getStrategyName(alloc.strategies?.address),
-          total_allocated: 0,
-          max_magnitude: state ? parseFloat(state.max_magnitude.toString()) : 0,
-        });
+    // Enhance AVS data with avsSummary USD values if allocation.magnitude_usd is not populated
+    for (const summary of avsSummary) {
+      const avsId = summary.avs_id;
+      if (avsMap.has(avsId)) {
+        const avsData = avsMap.get(avsId);
+        // Use summary USD if individual allocations don't have USD
+        if (
+          avsData.total_allocated_usd === 0 &&
+          summary.total_allocated_magnitude_usd
+        ) {
+          avsData.total_allocated_usd = parseFloat(
+            summary.total_allocated_magnitude_usd.toString(),
+          );
+        }
       }
+    }
 
-      const stratData = byStrategyMap.get(strategyId)!;
-      stratData.total_allocated += parseFloat(alloc.magnitude.toString());
-    });
+    // Calculate total allocated USD for percentage calculations
+    const totalAllocatedUsd = Array.from(avsMap.values()).reduce(
+      (sum, avs) => sum + avs.total_allocated_usd,
+      0,
+    );
 
-    const byStrategy = Array.from(byStrategyMap.values()).map((strat) => {
-      const available = strat.max_magnitude - strat.total_allocated;
-      const utilization =
-        strat.max_magnitude > 0
-          ? strat.total_allocated / strat.max_magnitude
-          : 0;
+    const byAVS: AVSAllocationBreakdown[] = Array.from(avsMap.values()).map(
+      (avs) => ({
+        avs_id: avs.avs_id,
+        avs_address: avs.avs_address,
+        avs_name: avs.avs_name,
+        avs_logo: avs.avs_logo,
+        total_allocated_usd: avs.total_allocated_usd.toFixed(2),
+        allocation_share_pct:
+          totalAllocatedUsd > 0
+            ? ((avs.total_allocated_usd / totalAllocatedUsd) * 100).toFixed(2)
+            : "0.00",
+        operator_set_count: avs.operator_set_ids.size,
+        strategies_used: Array.from(avs.strategies.entries()).map(
+          ([stratId, data]) => ({
+            strategy_id: stratId,
+            strategy_symbol: data.symbol,
+            allocated_usd: data.usd.toFixed(2),
+          }),
+        ),
+      }),
+    );
 
-      return {
-        strategy_id: strat.strategy_id,
-        strategy_name: strat.strategy_name,
-        total_allocated: strat.total_allocated.toString(),
-        available_magnitude: available.toString(),
-        utilization_rate: utilization.toFixed(4),
-      };
-    });
+    // Calculate summary
+    const totalTvsUsd = strategyState.reduce(
+      (sum: number, s: any) => sum + parseFloat(s.tvs_usd?.toString() || "0"),
+      0,
+    );
 
-    const totalEncumbered = allocations.reduce(
-      (sum: number, a: any) => sum + parseFloat(a.magnitude.toString()),
-      0
+    // Calculate weighted average utilization
+    const weightedUtilization =
+      totalTvsUsd > 0
+        ? strategyState.reduce((sum: number, s: any) => {
+            const tvs = parseFloat(s.tvs_usd?.toString() || "0");
+            const util = parseFloat(s.utilization_rate?.toString() || "0");
+            return sum + tvs * util;
+          }, 0) / totalTvsUsd
+        : 0;
+
+    // Calculate unique operator sets
+    const uniqueOperatorSets = new Set(
+      allocations.map((a: any) => a.operator_set_id),
+    );
+
+    // Calculate risk metrics
+    const riskMetrics = this.calculateAllocationRiskMetrics(
+      byAVS,
+      byStrategy,
+      weightedUtilization,
     );
 
     return {
-      total_allocations: allocations.length,
-      total_encumbered_magnitude: totalEncumbered.toString(),
-      by_avs: byAVS,
-      by_strategy: byStrategy,
+      summary: {
+        total_allocated_usd: totalAllocatedUsd.toFixed(2),
+        total_tvs_usd: totalTvsUsd.toFixed(2),
+        overall_utilization_pct: weightedUtilization.toFixed(2),
+        total_avs_count: avsMap.size,
+        total_operator_set_count: uniqueOperatorSets.size,
+        total_allocation_count: allocations.length,
+      },
+      by_strategy: byStrategy.sort(
+        (a, b) => parseFloat(b.tvs_usd) - parseFloat(a.tvs_usd),
+      ),
+      by_avs: byAVS.sort(
+        (a, b) =>
+          parseFloat(b.total_allocated_usd) - parseFloat(a.total_allocated_usd),
+      ),
+      risk_metrics: riskMetrics,
     };
   }
 
-  mapToDetailedAllocation(allocation: any): any {
+  /**
+   * Calculate Herfindahl-Hirschman Index and other risk metrics
+   */
+  private calculateAllocationRiskMetrics(
+    byAVS: AVSAllocationBreakdown[],
+    byStrategy: StrategyAllocationBreakdown[],
+    avgUtilization: number,
+  ): AllocationRiskMetrics {
+    // AVS concentration HHI (0-10000 scale)
+    const totalAvsUsd = byAVS.reduce(
+      (sum, a) => sum + parseFloat(a.total_allocated_usd),
+      0,
+    );
+    const avsHHI =
+      totalAvsUsd > 0
+        ? byAVS.reduce((sum, a) => {
+            const share =
+              (parseFloat(a.total_allocated_usd) / totalAvsUsd) * 100;
+            return sum + share * share;
+          }, 0)
+        : 0;
+
+    // Strategy concentration HHI
+    const totalStrategyTvs = byStrategy.reduce(
+      (sum, s) => sum + parseFloat(s.tvs_usd),
+      0,
+    );
+    const strategyHHI =
+      totalStrategyTvs > 0
+        ? byStrategy.reduce((sum, s) => {
+            const share = (parseFloat(s.tvs_usd) / totalStrategyTvs) * 100;
+            return sum + share * share;
+          }, 0)
+        : 0;
+
+    // Highest single AVS exposure
+    const highestAvsExposure =
+      byAVS.length > 0
+        ? Math.max(...byAVS.map((a) => parseFloat(a.allocation_share_pct)))
+        : 0;
+
+    return {
+      avs_concentration_hhi: Math.round(avsHHI),
+      strategy_concentration_hhi: Math.round(strategyHHI),
+      highest_single_avs_exposure_pct: highestAvsExposure.toFixed(2),
+      utilization_risk_level: getUtilizationRiskLevel(avgUtilization),
+    };
+  }
+
+  /**
+   * Map individual allocation to detailed item
+   */
+  async mapToDetailedAllocation(
+    allocation: any,
+    commissionRates: any[],
+  ): Promise<DetailedAllocationItem> {
+    const metadata = await this.getStrategyMetadataAsync(
+      allocation.strategies?.address,
+    );
+
+    // Find applicable commission
+    const commission = this.findApplicableCommission(
+      allocation,
+      commissionRates,
+    );
+
+    // Calculate magnitude percentage (if we have max_magnitude context)
+    const magnitudeRaw = allocation.magnitude?.toString() || "0";
+    const magnitudePct = allocation.allocation_percent
+      ? parseFloat(allocation.allocation_percent.toString()).toFixed(2)
+      : "0.00";
+
     return {
       allocation_id: allocation.id,
-      operator_set_id: allocation.operator_set_id,
+      avs_id: allocation.operator_sets?.avs_id || "",
       avs_name: this.getAVSName(allocation.operator_sets?.avs?.address),
+      avs_logo: this.getAVSLogo(allocation.operator_sets?.avs?.address),
+      operator_set_id: allocation.operator_set_id,
       operator_set_number: allocation.operator_sets?.operator_set_id || 0,
       strategy_id: allocation.strategy_id,
-      strategy_name: this.getStrategyName(allocation.strategies?.address),
-      magnitude: allocation.magnitude.toString(),
-      allocated_at: allocation.allocated_at.toISOString(),
-      effect_block: allocation.effect_block,
+      strategy_symbol: metadata?.symbol || "UNKNOWN",
+      strategy_logo: metadata?.logo_url || null,
+      magnitude_raw: magnitudeRaw,
+      magnitude_pct: magnitudePct,
+      allocated_usd: allocation.magnitude_usd?.toString() || "0.00",
+      commission: commission,
+      allocated_at: allocation.allocated_at?.toISOString() || "",
+      effect_block: allocation.effect_block || 0,
     };
+  }
+
+  /**
+   * Find the applicable commission for an allocation
+   * Priority: operator_set > avs > pi
+   */
+  private findApplicableCommission(
+    allocation: any,
+    commissionRates: any[],
+  ): {
+    effective_bips: number;
+    source: "pi" | "avs" | "operator_set";
+    display_pct: string;
+  } | null {
+    if (!commissionRates || commissionRates.length === 0) return null;
+
+    // Check for operator_set specific commission
+    const osCommission = commissionRates.find(
+      (c) =>
+        c.commission_type?.toLowerCase() === "operator_set" &&
+        c.operator_set_id === allocation.operator_set_id,
+    );
+    if (osCommission) {
+      return {
+        effective_bips: osCommission.current_bips,
+        source: "operator_set",
+        display_pct: (osCommission.current_bips / 100).toFixed(2),
+      };
+    }
+
+    // Check for AVS specific commission
+    const avsCommission = commissionRates.find(
+      (c) =>
+        c.commission_type?.toLowerCase() === "avs" &&
+        c.avs_id === allocation.operator_sets?.avs_id,
+    );
+    if (avsCommission) {
+      return {
+        effective_bips: avsCommission.current_bips,
+        source: "avs",
+        display_pct: (avsCommission.current_bips / 100).toFixed(2),
+      };
+    }
+
+    // Fall back to PI commission
+    const piCommission = commissionRates.find(
+      (c) => c.commission_type?.toLowerCase() === "pi",
+    );
+    if (piCommission) {
+      return {
+        effective_bips: piCommission.current_bips,
+        source: "pi",
+        display_pct: (piCommission.current_bips / 100).toFixed(2),
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Get strategy metadata asynchronously with caching
+   */
+  private async getStrategyMetadataAsync(
+    address: string,
+  ): Promise<StrategyMetadata | null> {
+    if (!address) return null;
+    const lowerAddress = address.toLowerCase();
+    if (this.strategyMetadataCache.has(lowerAddress)) {
+      return this.strategyMetadataCache.get(lowerAddress) || null;
+    }
+    const metadata =
+      await this.tokenMetadataService.getStrategyMetadata(lowerAddress);
+    this.strategyMetadataCache.set(lowerAddress, metadata);
+    return metadata;
+  }
+
+  /**
+   * Preload AVS metadata for multiple AVS IDs
+   */
+  async preloadAVSMetadata(avsIds: string[]): Promise<void> {
+    const uniqueIds = [...new Set(avsIds.filter(Boolean))];
+    const uncached = uniqueIds.filter(
+      (id) => !this.avsMetadataCache.has(id.toLowerCase()),
+    );
+
+    if (uncached.length === 0) return;
+
+    const metadataMap =
+      await this.avsMetadataService.getAVSMetadataBatch(uncached);
+    for (const [avsId, metadata] of metadataMap) {
+      this.avsMetadataCache.set(avsId.toLowerCase(), metadata);
+    }
+  }
+
+  /**
+   * Get AVS metadata asynchronously with caching
+   */
+  private async getAVSMetadataAsync(
+    avsId: string,
+  ): Promise<AVSMetadata | null> {
+    if (!avsId) return null;
+    const lowerId = avsId.toLowerCase();
+    if (this.avsMetadataCache.has(lowerId)) {
+      return this.avsMetadataCache.get(lowerId) || null;
+    }
+    const metadata = await this.avsMetadataService.getAVSMetadata(avsId);
+    this.avsMetadataCache.set(lowerId, metadata);
+    return metadata;
+  }
+
+  /**
+   * Clear the local AVS metadata cache
+   */
+  clearAVSMetadataCache(): void {
+    this.avsMetadataCache.clear();
   }
 
   // ============================================================================
@@ -807,19 +1752,112 @@ export class OperatorMapper {
 
   mapToVolatilityMetrics(metrics: any[]): any {
     return {
-      metrics: metrics.map((m) => ({
-        metric_type: m.metric_type,
-        date: m.date.toISOString().split("T")[0],
-        volatility_7d: m.volatility_7d?.toString() || null,
-        volatility_30d: m.volatility_30d?.toString() || null,
-        volatility_90d: m.volatility_90d?.toString() || null,
-        mean_value: m.mean_value?.toString() || null,
-        coefficient_of_variation:
-          m.coefficient_of_variation?.toString() || null,
-        trend_direction: m.trend_direction?.toString() || null,
-        trend_strength: m.trend_strength?.toString() || null,
-        confidence_score: m.confidence_score?.toString() || null,
-      })),
+      metrics: metrics.map((m) => this.mapToVolatilityMetric(m)),
+    };
+  }
+
+  mapToRiskProfile(profile: any): OperatorRiskProfile {
+    const { analytics, concentration, volatility } = profile;
+
+    if (!analytics) {
+      return null;
+    }
+
+    return {
+      operator_id: analytics.operator_id,
+      assessment_date: analytics.date.toISOString().split("T")[0],
+      scores: {
+        risk: parseFloat(analytics.risk_score.toString()),
+        confidence: parseFloat(analytics.confidence_score.toString()),
+        performance: analytics.performance_score
+          ? parseFloat(analytics.performance_score.toString())
+          : 0,
+        economic: analytics.economic_score
+          ? parseFloat(analytics.economic_score.toString())
+          : 0,
+        network_position: analytics.network_position_score
+          ? parseFloat(analytics.network_position_score.toString())
+          : 0,
+      },
+      risk_level: analytics.risk_level,
+      flags: {
+        is_active: analytics.is_active || false,
+        has_been_slashed: (analytics.slashing_event_count || 0) > 0,
+        has_sufficient_data: analytics.has_sufficient_data || false,
+      },
+      metrics: {
+        delegation: {
+          hhi: analytics.delegation_hhi
+            ? parseFloat(analytics.delegation_hhi.toString())
+            : 0,
+          volatility_30d: analytics.delegation_volatility_30d
+            ? parseFloat(analytics.delegation_volatility_30d.toString())
+            : 0,
+          growth_rate_30d: analytics.growth_rate_30d
+            ? parseFloat(analytics.growth_rate_30d.toString())
+            : 0,
+          distribution_cv: analytics.delegator_distribution_cv
+            ? parseFloat(analytics.delegator_distribution_cv.toString())
+            : 0,
+          size_percentile: analytics.size_percentile
+            ? parseFloat(analytics.size_percentile.toString())
+            : 0,
+        },
+        slashing: {
+          count: analytics.slashing_event_count || 0,
+          lifetime_amount:
+            analytics.lifetime_slashing_amount?.toString() || "0",
+        },
+        activity: {
+          operational_days: analytics.operational_days || 0,
+        },
+      },
+      concentration: {
+        delegation: concentration.delegation
+          ? this.mapToConcentrationMetric(concentration.delegation)
+          : null,
+        allocation_by_avs: concentration.allocation_by_avs
+          ? this.mapToConcentrationMetric(concentration.allocation_by_avs)
+          : null,
+        allocation_by_strategy: concentration.allocation_by_strategy
+          ? this.mapToConcentrationMetric(concentration.allocation_by_strategy)
+          : null,
+      },
+      volatility: {
+        tvs: volatility.tvs ? this.mapToVolatilityMetric(volatility.tvs) : null,
+        delegators: volatility.delegators
+          ? this.mapToVolatilityMetric(volatility.delegators)
+          : null,
+      },
+    };
+  }
+
+  private mapToConcentrationMetric(m: any): any {
+    return {
+      concentration_type: m.concentration_type,
+      date: m.date.toISOString().split("T")[0],
+      hhi_value: m.hhi_value?.toString() || "0",
+      gini_coefficient: m.gini_coefficient?.toString() || null,
+      top_1_percentage: m.top_1_percentage?.toString() || null,
+      top_5_percentage: m.top_5_percentage?.toString() || null,
+      top_10_percentage: m.top_10_percentage?.toString() || null,
+      total_entities: m.total_entities || 0,
+      effective_entities: m.effective_entities?.toString() || null,
+    };
+  }
+
+  private mapToVolatilityMetric(m: any): any {
+    return {
+      metric_type: m.metric_type,
+      date: m.date.toISOString().split("T")[0],
+      volatility_7d: m.volatility_7d?.toString() || null,
+      volatility_30d: m.volatility_30d?.toString() || null,
+      volatility_90d: m.volatility_90d?.toString() || null,
+      mean_value: m.mean_value?.toString() || null,
+      coefficient_of_variation: m.coefficient_of_variation?.toString() || null,
+      trend_direction: m.trend_direction?.toString() || null,
+      trend_strength: m.trend_strength?.toString() || null,
+      confidence_score: m.confidence_score?.toString() || null,
     };
   }
 
@@ -839,6 +1877,7 @@ export class OperatorMapper {
         slash_event_count_to_date: s.slash_event_count_to_date,
         operational_days: s.operational_days,
         is_active: s.is_active,
+        tvs_usd: s.total_tvs ? s.total_tvs.toString() : "0",
       })),
     };
   }
@@ -848,7 +1887,7 @@ export class OperatorMapper {
       history: snapshots.map((s) => {
         const maxMag = parseFloat(s.max_magnitude.toString());
         const encumbered = parseFloat(
-          s.encumbered_magnitude?.toString() || "0"
+          s.encumbered_magnitude?.toString() || "0",
         );
         const utilization = maxMag > 0 ? encumbered / maxMag : 0;
 
@@ -928,7 +1967,7 @@ export class OperatorMapper {
       const incidentTotal = inc.operator_slashing_amounts.reduce(
         (iSum: number, amt: any) =>
           iSum + parseFloat(amt.wad_slashed.toString()),
-        0
+        0,
       );
       return sum + incidentTotal;
     }, 0);
@@ -1015,53 +2054,53 @@ export class OperatorMapper {
 
     // Calculate TVS for operator
     const operatorTVS = this.calculateTotalTVS(
-      operator.operator_strategy_state
+      operator.operator_strategy_state,
     );
     const operatorDelegators = operator.operator_state?.active_delegators || 0;
     const operatorAVS = operator.operator_state?.active_avs_count || 0;
     const operatorDays = operator.operator_state?.operational_days || 0;
     const operatorRisk = parseFloat(
-      operator.operator_analytics[0]?.risk_score?.toString() || "0"
+      operator.operator_analytics[0]?.risk_score?.toString() || "0",
     );
 
     // Calculate percentiles
     const allTVS = allOperators.map((op: any) =>
-      parseFloat(this.calculateTotalTVS(op.operator_strategy_state))
+      parseFloat(this.calculateTotalTVS(op.operator_strategy_state)),
     );
     const allDelegators = allOperators.map(
-      (op: any) => op.operator_state?.active_delegators || 0
+      (op: any) => op.operator_state?.active_delegators || 0,
     );
     const allAVS = allOperators.map(
-      (op: any) => op.operator_state?.active_avs_count || 0
+      (op: any) => op.operator_state?.active_avs_count || 0,
     );
     const allDays = allOperators.map(
-      (op: any) => op.operator_state?.operational_days || 0
+      (op: any) => op.operator_state?.operational_days || 0,
     );
     const allRisk = allOperators.map((op: any) =>
-      parseFloat(op.operator_analytics[0]?.risk_score?.toString() || "0")
+      parseFloat(op.operator_analytics[0]?.risk_score?.toString() || "0"),
     );
 
     return {
       rankings: {
         tvs_percentile: this.calculatePercentile(
           allTVS,
-          parseFloat(operatorTVS)
+          parseFloat(operatorTVS),
         ).toFixed(2),
         delegator_count_percentile: this.calculatePercentile(
           allDelegators,
-          operatorDelegators
+          operatorDelegators,
         ).toFixed(2),
         avs_count_percentile: this.calculatePercentile(
           allAVS,
-          operatorAVS
+          operatorAVS,
         ).toFixed(2),
         operational_days_percentile: this.calculatePercentile(
           allDays,
-          operatorDays
+          operatorDays,
         ).toFixed(2),
         risk_score_percentile: this.calculatePercentile(
           allRisk,
-          operatorRisk
+          operatorRisk,
         ).toFixed(2),
       },
       absolute_values: {
@@ -1074,7 +2113,7 @@ export class OperatorMapper {
       network_stats: {
         total_operators: allOperators.length,
         active_operators: allOperators.filter(
-          (op: any) => op.operator_state?.is_active
+          (op: any) => op.operator_state?.is_active,
         ).length,
       },
       date:
@@ -1093,7 +2132,7 @@ export class OperatorMapper {
   mapToNetworkComparison(operator: any, networkAvg: any): any {
     const state = operator.operator_state;
     const operatorTVS = this.calculateTotalTVS(
-      operator.operator_strategy_state
+      operator.operator_strategy_state,
     );
     const operatorDelegators = state?.active_delegators || 0;
     const operatorAVS = state?.active_avs_count || 0;
@@ -1102,16 +2141,16 @@ export class OperatorMapper {
     const meanTVS = parseFloat(networkAvg.mean_tvs?.toString() || "0");
     const medianTVS = parseFloat(networkAvg.median_tvs?.toString() || "0");
     const meanDelegators = parseFloat(
-      networkAvg.mean_delegators_per_operator?.toString() || "0"
+      networkAvg.mean_delegators_per_operator?.toString() || "0",
     );
     const medianDelegators = parseFloat(
-      networkAvg.median_delegators_per_operator?.toString() || "0"
+      networkAvg.median_delegators_per_operator?.toString() || "0",
     );
     const meanAVS = parseFloat(
-      networkAvg.mean_avs_per_operator?.toString() || "0"
+      networkAvg.mean_avs_per_operator?.toString() || "0",
     );
     const meanCommission = parseFloat(
-      networkAvg.mean_pi_commission_bips?.toString() || "0"
+      networkAvg.mean_pi_commission_bips?.toString() || "0",
     );
 
     return {

@@ -21,12 +21,18 @@ import { BaseController } from "@/core/common/base.controller";
 import { PaginationHelper } from "@/core/common/pagination.helper";
 import { ResponseHelper } from "@/core/responses/response.helper";
 import { OperatorService } from "./operators.service";
-import { Public } from "@/core/decorators/public.decorator";
+import { CurrentUser } from "@/core/decorators/current-user.decorator";
+import { RequireAuth } from "@/core/decorators/require-auth.decorator";
+import { TierGated } from "@/core/decorators/tier-gated.decorator";
 import { FindOperatorsQueryDto } from "./dto/index.dto";
 import { GetActivityDto } from "./dto/activity.dto";
 import { ListOperatorAVSDto } from "./dto/avs.dto";
 import { ListDetailedAllocationsDto } from "./dto/allocation.dto";
 import { GetCommissionHistoryDto } from "./dto/commission.dto";
+import {
+  CommissionOverviewResponseDto,
+  CommissionHistoryResponseDto,
+} from "./dto/commission-response.dto";
 import {
   ListDelegatorsDto,
   GetDelegationHistoryDto,
@@ -48,9 +54,11 @@ import {
   GetAVSTimelineDto,
   GetAllocationHistoryDto,
 } from "./dto/time-series.dto";
+import { AuthUser, UserTier } from "@/shared/types/auth.types";
 
 @ApiTags("Operators")
 @Controller("operators")
+@RequireAuth()
 export class OperatorsController extends BaseController<any> {
   private readonly logger = new Logger(OperatorsController.name);
 
@@ -62,7 +70,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 1: List Operators
   // ============================================================================
   @Get()
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get all operators with filters and pagination",
@@ -80,19 +87,19 @@ export class OperatorsController extends BaseController<any> {
 
     const { operators, total } = await this.operatorService.findOperators(
       query,
-      paginationParams
+      paginationParams,
     );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.paginated(
       operators,
       paginationMeta,
-      "Operators retrieved successfully"
+      "Operators retrieved successfully",
     );
   }
 
@@ -100,7 +107,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 2: Get Operator Overview
   // ============================================================================
   @Get(":id")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator overview",
@@ -120,7 +126,7 @@ export class OperatorsController extends BaseController<any> {
     const overview = await this.operatorService.findOperatorById(id);
     return ResponseHelper.ok(
       overview,
-      "Operator overview retrieved successfully"
+      "Operator overview retrieved successfully",
     );
   }
 
@@ -128,7 +134,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 3: Get Operator Statistics
   // ============================================================================
   @Get(":id/stats")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator statistics",
@@ -148,7 +153,7 @@ export class OperatorsController extends BaseController<any> {
     const stats = await this.operatorService.getOperatorStats(id);
     return ResponseHelper.ok(
       stats,
-      "Operator statistics retrieved successfully"
+      "Operator statistics retrieved successfully",
     );
   }
 
@@ -156,7 +161,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 4: Get Operator Activity Timeline
   // ============================================================================
   @Get(":id/activity")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator activity timeline",
@@ -174,19 +178,19 @@ export class OperatorsController extends BaseController<any> {
         id,
         query.activity_types,
         query.limit,
-        query.offset
+        query.offset,
       );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       query.limit || 50,
-      query.offset || 0
+      query.offset || 0,
     );
 
     return ResponseHelper.paginated(
       activities,
       paginationMeta,
-      "Activity timeline retrieved successfully"
+      "Activity timeline retrieved successfully",
     );
   }
 
@@ -194,7 +198,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 5: List Operator Strategies
   // ============================================================================
   @Get(":id/strategies")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator strategies",
@@ -212,15 +215,18 @@ export class OperatorsController extends BaseController<any> {
   })
   async getStrategies(
     @Param("id") id: string,
-    @Query() filters: ListOperatorStrategiesDto
+    @Query() filters: ListOperatorStrategiesDto,
+    @CurrentUser() user: AuthUser,
   ) {
+    const tier: UserTier = user.tier;
     const strategies = await this.operatorService.findOperatorStrategies(
       id,
-      filters
+      filters,
+      tier,
     );
     return ResponseHelper.ok(
-      { strategies },
-      "Operator strategies retrieved successfully"
+      strategies,
+      "Operator strategies retrieved successfully",
     );
   }
 
@@ -228,7 +234,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 6: Get Strategy Detail for Operator
   // ============================================================================
   @Get(":id/strategies/:strategyId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy detail for operator",
@@ -247,7 +252,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async getStrategyDetail(
     @Param("id") id: string,
-    @Param("strategyId") strategyId: string
+    @Param("strategyId") strategyId: string,
   ) {
     const detail = await this.operatorService.getStrategyDetail(id, strategyId);
     return ResponseHelper.ok(detail, "Strategy detail retrieved successfully");
@@ -257,7 +262,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 7: List Operator AVS Registrations
   // ============================================================================
   @Get(":id/avs")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator AVS registrations",
@@ -271,18 +275,22 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAVSRegistrations(
     @Param("id") id: string,
-    @Query() query: ListOperatorAVSDto
+    @Query() query: ListOperatorAVSDto,
+    @CurrentUser() user: AuthUser,
   ) {
+    const tier: UserTier = user.tier;
     const relationships =
       await this.operatorService.findOperatorAVSRelationships(
         id,
         query.status,
-        query.sort_by
+        query.sort_by,
+        tier,
+        { limit: query.limit, offset: query.offset },
       );
 
     return ResponseHelper.ok(
-      { avs_relationships: relationships },
-      "AVS registrations retrieved successfully"
+      relationships,
+      "AVS registrations retrieved successfully",
     );
   }
 
@@ -290,7 +298,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 8: Get Operator-AVS Detail
   // ============================================================================
   @Get(":id/avs/:avsId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator-AVS detail",
@@ -307,7 +314,7 @@ export class OperatorsController extends BaseController<any> {
     const detail = await this.operatorService.getOperatorAVSDetail(id, avsId);
     return ResponseHelper.ok(
       detail,
-      "Operator-AVS detail retrieved successfully"
+      "Operator-AVS detail retrieved successfully",
     );
   }
 
@@ -315,7 +322,6 @@ export class OperatorsController extends BaseController<any> {
   // ENDPOINT 9: Get Operator AVS Registration History
   // ============================================================================
   @Get(":id/avs/:avsId/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator AVS registration history",
@@ -330,15 +336,15 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAVSRegistrationHistory(
     @Param("id") id: string,
-    @Param("avsId") avsId: string
+    @Param("avsId") avsId: string,
   ) {
     const history = await this.operatorService.getAVSRegistrationHistory(
       id,
-      avsId
+      avsId,
     );
     return ResponseHelper.ok(
       { history },
-      "AVS registration history retrieved successfully"
+      "AVS registration history retrieved successfully",
     );
   }
 
@@ -350,27 +356,31 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 10: Get Operator Commission Overview
    */
   @Get(":id/commission")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator commission overview",
     description:
-      "All commission rates for the operator including PI, AVS, and operator set commissions",
+      "All commission rates for the operator including PI, AVS, and operator set commissions, plus behavioral insights.",
   })
   @ApiParam({ name: "id", description: "Operator ID" })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Successfully retrieved commission overview",
+    type: CommissionOverviewResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: "Operator not found",
   })
-  async getCommissionOverview(@Param("id") id: string) {
-    const overview = await this.operatorService.getCommissionOverview(id);
+  async getCommissionOverview(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const tier: UserTier = user.tier;
+    const overview = await this.operatorService.getCommissionOverview(id, tier);
     return ResponseHelper.ok(
       overview,
-      "Commission overview retrieved successfully"
+      "Commission overview retrieved successfully",
     );
   }
 
@@ -378,7 +388,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 11: Get Commission History
    */
   @Get(":id/commission/history")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get commission history",
@@ -388,6 +398,7 @@ export class OperatorsController extends BaseController<any> {
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Successfully retrieved commission history",
+    type: CommissionHistoryResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -395,12 +406,12 @@ export class OperatorsController extends BaseController<any> {
   })
   async getCommissionHistory(
     @Param("id") id: string,
-    @Query() query: GetCommissionHistoryDto
+    @Query() query: GetCommissionHistoryDto,
   ) {
     const history = await this.operatorService.getCommissionHistory(id, query);
     return ResponseHelper.ok(
       history,
-      "Commission history retrieved successfully"
+      "Commission history retrieved successfully",
     );
   }
 
@@ -412,7 +423,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 12: List Operator Delegators
    */
   @Get(":id/delegators")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List operator delegators",
@@ -430,8 +440,10 @@ export class OperatorsController extends BaseController<any> {
   })
   async listDelegators(
     @Param("id") id: string,
-    @Query() query: ListDelegatorsDto
+    @Query() query: ListDelegatorsDto,
+    @CurrentUser() user: AuthUser,
   ) {
+    const tier: UserTier = user.tier;
     const paginationParams = this.handlePagination(query);
 
     const result = await this.operatorService.listDelegators(
@@ -443,15 +455,14 @@ export class OperatorsController extends BaseController<any> {
       },
       paginationParams,
       query.sort_by,
-      query.sort_order
+      query.sort_order,
+      tier,
     );
 
-    // TODO: Investigate this
-    // We don't have accurate total count due to filtering, so we'll use delegators length
     const paginationMeta = PaginationHelper.buildMeta(
       result.summary.total_delegators,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.ok(
@@ -459,8 +470,56 @@ export class OperatorsController extends BaseController<any> {
         delegators: result.delegators,
         summary: result.summary,
         pagination: paginationMeta,
+        tier_context: result.tier_context,
       },
-      "Delegators retrieved successfully"
+      "Delegators retrieved successfully",
+    );
+  }
+
+  /**
+   * Endpoint 14: Get Delegation History
+   */
+  @Get(":id/delegators/history")
+  @ApiSecurity("api-key")
+  @ApiOperation({
+    summary: "Get delegation history",
+    description: "Historical delegation/undelegation events for the operator",
+  })
+  @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved delegation history",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Operator not found",
+  })
+  async getDelegationHistory(
+    @Param("id") id: string,
+    @Query() query: GetDelegationHistoryDto,
+  ) {
+    const paginationParams = this.handlePagination(query);
+
+    const { events, total } = await this.operatorService.getDelegationHistory(
+      id,
+      {
+        event_type: query.event_type,
+        date_from: query.date_from,
+        date_to: query.date_to,
+      },
+      paginationParams,
+    );
+
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      paginationParams.limit,
+      paginationParams.offset,
+    );
+
+    return ResponseHelper.paginated(
+      events,
+      paginationMeta,
+      "Delegation history retrieved successfully",
     );
   }
 
@@ -468,7 +527,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 13: Get Delegator Detail
    */
   @Get(":id/delegators/:stakerId")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegator detail",
@@ -487,7 +545,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async getDelegatorDetail(
     @Param("id") id: string,
-    @Param("stakerId") stakerId: string
+    @Param("stakerId") stakerId: string,
   ) {
     // TODO: Investigate this endpoint
     const detail = await this.operatorService.getDelegatorDetail(id, stakerId);
@@ -495,50 +553,36 @@ export class OperatorsController extends BaseController<any> {
   }
 
   /**
-   * Endpoint 14: Get Delegation History
+   * Endpoint: Get Delegator Risk Exposure
    */
-  @Get(":id/delegators/history")
-  @Public()
+  @Get(":id/delegators/:stakerId/exposure")
   @ApiSecurity("api-key")
   @ApiOperation({
-    summary: "Get delegation history",
-    description: "Historical delegation/undelegation events for the operator",
+    summary: "Get delegator risk exposure",
+    description:
+      "Shows a delegator's risk exposure through this operator, including per-AVS exposure and potential slashing impact",
   })
   @ApiParam({ name: "id", description: "Operator ID" })
+  @ApiParam({ name: "stakerId", description: "Staker ID" })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: "Successfully retrieved delegation history",
+    description: "Successfully retrieved delegator exposure",
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: "Operator not found",
+    description: "Operator or delegator not found",
   })
-  async getDelegationHistory(
+  async getDelegatorExposure(
     @Param("id") id: string,
-    @Query() query: GetDelegationHistoryDto
+    @Param("stakerId") stakerId: string,
   ) {
-    const paginationParams = this.handlePagination(query);
-
-    const { events, total } = await this.operatorService.getDelegationHistory(
+    const exposure = await this.operatorService.getDelegatorExposure(
       id,
-      {
-        event_type: query.event_type,
-        date_from: query.date_from,
-        date_to: query.date_to,
-      },
-      paginationParams
+      stakerId,
     );
-
-    const paginationMeta = PaginationHelper.buildMeta(
-      total,
-      paginationParams.limit,
-      paginationParams.offset
-    );
-
-    return ResponseHelper.paginated(
-      events,
-      paginationMeta,
-      "Delegation history retrieved successfully"
+    return ResponseHelper.ok(
+      exposure,
+      "Delegator exposure retrieved successfully",
     );
   }
 
@@ -550,7 +594,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 15: Get Operator Allocations Overview
    */
   @Get(":id/allocations")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator allocations overview",
@@ -566,11 +609,18 @@ export class OperatorsController extends BaseController<any> {
     status: HttpStatus.NOT_FOUND,
     description: "Operator not found",
   })
-  async getAllocationsOverview(@Param("id") id: string) {
-    const overview = await this.operatorService.getAllocationsOverview(id);
+  async getAllocationsOverview(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const tier: UserTier = user.tier;
+    const overview = await this.operatorService.getAllocationsOverview(
+      id,
+      tier,
+    );
     return ResponseHelper.ok(
       overview,
-      "Allocations overview retrieved successfully"
+      "Allocations overview retrieved successfully",
     );
   }
 
@@ -578,7 +628,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 16: List Detailed Allocations
    */
   @Get(":id/allocations/detailed")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "List detailed allocations",
@@ -596,7 +645,7 @@ export class OperatorsController extends BaseController<any> {
   })
   async listDetailedAllocations(
     @Param("id") id: string,
-    @Query() query: ListDetailedAllocationsDto
+    @Query() query: ListDetailedAllocationsDto,
   ) {
     const paginationParams = this.handlePagination(query);
 
@@ -611,19 +660,19 @@ export class OperatorsController extends BaseController<any> {
         },
         paginationParams,
         query.sort_by,
-        query.sort_order
+        query.sort_order,
       );
 
     const paginationMeta = PaginationHelper.buildMeta(
       total,
       paginationParams.limit,
-      paginationParams.offset
+      paginationParams.offset,
     );
 
     return ResponseHelper.paginated(
       allocations,
       paginationMeta,
-      "Detailed allocations retrieved successfully"
+      "Detailed allocations retrieved successfully",
     );
   }
 
@@ -635,7 +684,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 17: Get Operator Risk Assessment
    */
   @Get(":id/risk")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator risk assessment",
@@ -653,15 +702,15 @@ export class OperatorsController extends BaseController<any> {
   })
   async getRiskAssessment(
     @Param("id") id: string,
-    @Query() query: GetRiskAssessmentDto
+    @Query() query: GetRiskAssessmentDto,
   ) {
-    const assessment = await this.operatorService.getRiskAssessment(
+    const assessment = await this.operatorService.getOperatorRiskProfile(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       assessment,
-      "Risk assessment retrieved successfully"
+      "Risk assessment retrieved successfully",
     );
   }
 
@@ -669,7 +718,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 18: Get Concentration Metrics
    */
   @Get(":id/concentration")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get concentration metrics",
@@ -687,16 +736,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getConcentrationMetrics(
     @Param("id") id: string,
-    @Query() query: GetConcentrationMetricsDto
+    @Query() query: GetConcentrationMetricsDto,
   ) {
     const metrics = await this.operatorService.getConcentrationMetrics(
       id,
       query.concentration_type || "delegation",
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       metrics,
-      "Concentration metrics retrieved successfully"
+      "Concentration metrics retrieved successfully",
     );
   }
 
@@ -704,7 +753,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 19: Get Volatility Metrics
    */
   @Get(":id/volatility")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get volatility metrics",
@@ -722,16 +771,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getVolatilityMetrics(
     @Param("id") id: string,
-    @Query() query: GetVolatilityMetricsDto
+    @Query() query: GetVolatilityMetricsDto,
   ) {
     const metrics = await this.operatorService.getVolatilityMetrics(
       id,
       query.metric_type || "tvs",
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       metrics,
-      "Volatility metrics retrieved successfully"
+      "Volatility metrics retrieved successfully",
     );
   }
 
@@ -743,7 +792,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 20: Get Operator Daily Snapshots
    */
   @Get(":id/snapshots/daily")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator daily snapshots",
@@ -761,16 +809,16 @@ export class OperatorsController extends BaseController<any> {
   })
   async getDailySnapshots(
     @Param("id") id: string,
-    @Query() query: GetDailySnapshotsDto
+    @Query() query: GetDailySnapshotsDto,
   ) {
     const snapshots = await this.operatorService.getDailySnapshots(
       id,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       snapshots,
-      "Daily snapshots retrieved successfully"
+      "Daily snapshots retrieved successfully",
     );
   }
 
@@ -778,7 +826,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 21: Get Strategy TVS History
    */
   @Get(":id/strategies/:strategyId/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get strategy TVS history",
@@ -798,17 +845,17 @@ export class OperatorsController extends BaseController<any> {
   async getStrategyTVSHistory(
     @Param("id") id: string,
     @Param("strategyId") strategyId: string,
-    @Query() query: GetStrategyTVSHistoryDto
+    @Query() query: GetStrategyTVSHistoryDto,
   ) {
     const history = await this.operatorService.getStrategyTVSHistory(
       id,
       strategyId,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       history,
-      "Strategy TVS history retrieved successfully"
+      "Strategy TVS history retrieved successfully",
     );
   }
 
@@ -816,7 +863,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 22: Get Delegator Shares History
    */
   @Get(":id/delegators/:stakerId/shares/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get delegator shares history",
@@ -836,16 +882,16 @@ export class OperatorsController extends BaseController<any> {
   async getDelegatorSharesHistory(
     @Param("id") id: string,
     @Param("stakerId") stakerId: string,
-    @Query() query: GetDelegatorSharesHistoryDto
+    @Query() query: GetDelegatorSharesHistoryDto,
   ) {
     const history = await this.operatorService.getDelegatorSharesHistory(
       id,
       stakerId,
-      query
+      query,
     );
     return ResponseHelper.ok(
       history,
-      "Delegator shares history retrieved successfully"
+      "Delegator shares history retrieved successfully",
     );
   }
 
@@ -853,7 +899,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 23: Get AVS Relationship Timeline
    */
   @Get(":id/avs/:avsId/timeline")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get AVS relationship timeline",
@@ -873,17 +918,17 @@ export class OperatorsController extends BaseController<any> {
   async getAVSRelationshipTimeline(
     @Param("id") id: string,
     @Param("avsId") avsId: string,
-    @Query() query: GetAVSTimelineDto
+    @Query() query: GetAVSTimelineDto,
   ) {
     const timeline = await this.operatorService.getAVSRelationshipTimeline(
       id,
       avsId,
       query.date_from,
-      query.date_to
+      query.date_to,
     );
     return ResponseHelper.ok(
       timeline,
-      "AVS relationship timeline retrieved successfully"
+      "AVS relationship timeline retrieved successfully",
     );
   }
 
@@ -891,7 +936,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 24: Get Allocation History
    */
   @Get(":id/allocations/history")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get allocation history",
@@ -909,12 +953,12 @@ export class OperatorsController extends BaseController<any> {
   })
   async getAllocationHistory(
     @Param("id") id: string,
-    @Query() query: GetAllocationHistoryDto
+    @Query() query: GetAllocationHistoryDto,
   ) {
     const history = await this.operatorService.getAllocationHistory(id, query);
     return ResponseHelper.ok(
       history,
-      "Allocation history retrieved successfully"
+      "Allocation history retrieved successfully",
     );
   }
 
@@ -922,7 +966,6 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 25: Get Slashing Incidents
    */
   @Get(":id/slashing")
-  @Public()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get slashing incidents",
@@ -942,7 +985,7 @@ export class OperatorsController extends BaseController<any> {
     const incidents = await this.operatorService.getSlashingIncidents(id);
     return ResponseHelper.ok(
       incidents,
-      "Slashing incidents retrieved successfully"
+      "Slashing incidents retrieved successfully",
     );
   }
 
@@ -954,7 +997,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 26: Compare Operators
    */
   @Post("compare")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operators",
@@ -978,7 +1021,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 27: Get Operator Percentile Rankings
    */
   @Get(":id/rankings")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get operator percentile rankings",
@@ -996,11 +1039,11 @@ export class OperatorsController extends BaseController<any> {
   })
   async getOperatorRankings(
     @Param("id") id: string,
-    @Query() query: GetRankingsDto
+    @Query() query: GetRankingsDto,
   ) {
     const rankings = await this.operatorService.getOperatorRankings(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(rankings, "Rankings retrieved successfully");
   }
@@ -1009,7 +1052,7 @@ export class OperatorsController extends BaseController<any> {
    * Endpoint 28: Compare Operator to Network Averages
    */
   @Get(":id/vs-network")
-  @Public()
+  @TierGated("PRO")
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Compare operator to network averages",
@@ -1026,15 +1069,15 @@ export class OperatorsController extends BaseController<any> {
   }) // REQUIRED because NetworkRepository extends BaseRepository
   async compareOperatorToNetwork(
     @Param("id") id: string,
-    @Query() query: CompareToNetworkDto
+    @Query() query: CompareToNetworkDto,
   ) {
     const comparison = await this.operatorService.compareOperatorToNetwork(
       id,
-      query.date
+      query.date,
     );
     return ResponseHelper.ok(
       comparison,
-      "Network comparison retrieved successfully"
+      "Network comparison retrieved successfully",
     );
   }
 }

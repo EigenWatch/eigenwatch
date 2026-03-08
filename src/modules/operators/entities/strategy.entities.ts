@@ -3,10 +3,12 @@ export interface OperatorStrategyListItem {
   strategy_address: string;
   strategy_name: string;
   strategy_symbol: string;
+  strategy_logo: string | null;
   max_magnitude: string;
   encumbered_magnitude: string;
   available_magnitude: string;
   utilization_rate: string;
+  tvs_usd: string;
   last_updated_at: string;
   delegator_count: number;
 }

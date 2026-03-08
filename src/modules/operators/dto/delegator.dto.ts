@@ -1,7 +1,14 @@
 // ============================================================================
 // SRC/MODULES/OPERATORS/DTO/DELEGATOR.DTO.TS
 // ============================================================================
-import { IsOptional, IsString, IsEnum, IsNumber, Min } from "class-validator";
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsNumber,
+  Min,
+  IsIn,
+} from "class-validator";
 import { Type } from "class-transformer";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { PaginationDto } from "@/shared/dto/pagination.dto";
@@ -15,21 +22,20 @@ export enum DelegatorStatus {
 export enum DelegatorSortField {
   SHARES = "shares",
   DELEGATION_DATE = "delegation_date",
+  TVS = "tvs",
 }
 
 export class ListDelegatorsDto extends PaginationDto {
   @ApiPropertyOptional({
     description: "Filter by delegator status",
     enum: DelegatorStatus,
-    default: DelegatorStatus.ALL,
   })
   @IsOptional()
   @IsEnum(DelegatorStatus)
-  status?: DelegatorStatus = DelegatorStatus.ALL;
+  status?: DelegatorStatus;
 
   @ApiPropertyOptional({
     description: "Minimum shares",
-    example: 1000,
   })
   @IsOptional()
   @Type(() => Number)
@@ -39,7 +45,6 @@ export class ListDelegatorsDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: "Maximum shares",
-    example: 100000,
   })
   @IsOptional()
   @Type(() => Number)
@@ -50,11 +55,11 @@ export class ListDelegatorsDto extends PaginationDto {
   @ApiPropertyOptional({
     description: "Sort by field",
     enum: DelegatorSortField,
-    default: DelegatorSortField.SHARES,
+    default: DelegatorSortField.TVS,
   })
   @IsOptional()
   @IsEnum(DelegatorSortField)
-  sort_by?: DelegatorSortField = DelegatorSortField.SHARES;
+  sort_by?: DelegatorSortField = DelegatorSortField.TVS;
 
   @ApiPropertyOptional({
     description: "Sort order",
@@ -62,7 +67,7 @@ export class ListDelegatorsDto extends PaginationDto {
     default: "desc",
   })
   @IsOptional()
-  @IsEnum(["asc", "desc"])
+  @IsIn(["asc", "desc"])
   sort_order?: "asc" | "desc" = "desc";
 }
 

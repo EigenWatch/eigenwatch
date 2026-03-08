@@ -1,0 +1,4061 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/auth/challenge": {
+      "post": {
+        "operationId": "AuthController_getChallenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Get challenge message for wallet signature",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "AuthController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySignatureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify signature and issue JWT tokens",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Refresh access token using refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Logout and revoke refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController_logoutAll",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Logout from all sessions",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_getCurrentUser",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user information",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/add": {
+      "post": {
+        "operationId": "AuthController_addEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add an email address and send verification code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/verify": {
+      "post": {
+        "operationId": "AuthController_verifyEmailAddress",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify an email with a 6-digit code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/resend": {
+      "post": {
+        "operationId": "AuthController_resendVerification",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resend email verification code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/{id}": {
+      "delete": {
+        "operationId": "AuthController_removeEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove an email address",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/{id}/primary": {
+      "put": {
+        "operationId": "AuthController_setPrimaryEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set an email as primary",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/operators": {
+      "get": {
+        "description": "Primary endpoint for the operators listing/discovery page with flexible filtering and sorting",
+        "operationId": "OperatorsController_findAll",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "active",
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "min_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Minimum total value secured",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Maximum total value secured",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_delegators",
+            "required": false,
+            "in": "query",
+            "description": "Minimum delegator count",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_delegators",
+            "required": false,
+            "in": "query",
+            "description": "Maximum delegator count",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_avs_count",
+            "required": false,
+            "in": "query",
+            "description": "Minimum AVS count",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_avs_count",
+            "required": false,
+            "in": "query",
+            "description": "Maximum AVS count",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "has_been_slashed",
+            "required": false,
+            "in": "query",
+            "description": "Filter by slash status",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "is_permissioned",
+            "required": false,
+            "in": "query",
+            "description": "Filter by permissioned status",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search by operator address or name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "description": "Field to sort by",
+            "schema": {
+              "default": "tvs",
+              "example": "totalTVS",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "delegator_count",
+                "avs_count",
+                "operational_days",
+                "risk_score"
+              ]
+            }
+          },
+          {
+            "name": "exclude_zero_risk",
+            "required": false,
+            "in": "query",
+            "description": "Exclude operators with zero or no risk score",
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operators list"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all operators with filters and pagination",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}": {
+      "get": {
+        "description": "Complete overview for a single operator's profile page including metadata, status, and performance summary",
+        "operationId": "OperatorsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operator overview"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator overview",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/stats": {
+      "get": {
+        "description": "Current numerical statistics for the operator including TVS, delegation, AVS participation, and commission",
+        "operationId": "OperatorsController_getStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operator statistics"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator statistics",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/activity": {
+      "get": {
+        "description": "Recent activity events for the operator (registration, delegation, allocation, commission, metadata, slashing)",
+        "operationId": "OperatorsController_getActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activity_types",
+            "required": false,
+            "in": "query",
+            "description": "Filter by activity types",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "registration",
+                  "delegation",
+                  "allocation",
+                  "commission",
+                  "metadata",
+                  "slashing"
+                ]
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Limit results",
+            "schema": {
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Offset for pagination",
+            "schema": {
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operator activity"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator activity timeline",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/strategies": {
+      "get": {
+        "description": "All strategies the operator has TVS for, with utilization rates and delegator counts",
+        "operationId": "OperatorsController_getStrategies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Minimum TVS",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Maximum TVS",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_utilization",
+            "required": false,
+            "in": "query",
+            "description": "Minimum utilization rate (0-1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_utilization",
+            "required": false,
+            "in": "query",
+            "description": "Maximum utilization rate (0-1)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "utilization",
+                "encumbered"
+              ]
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operator strategies"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List operator strategies",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/strategies/{strategyId}": {
+      "get": {
+        "description": "Detailed view of a specific strategy for an operator including allocations and top delegators",
+        "operationId": "OperatorsController_getStrategyDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategyId",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy detail"
+          },
+          "404": {
+            "description": "Operator or strategy not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy detail for operator",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/avs": {
+      "get": {
+        "description": "All AVSs the operator is or was registered with, including registration cycles and status",
+        "operationId": "OperatorsController_getAVSRegistrations",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "REGISTERED",
+              "type": "string",
+              "enum": [
+                "REGISTERED",
+                "UNREGISTERED",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "days_registered",
+              "type": "string",
+              "enum": [
+                "days_registered",
+                "operator_set_count",
+                "registration_cycles"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved AVS registrations"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List operator AVS registrations",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/avs/{avsId}": {
+      "get": {
+        "description": "Detailed view of operator's relationship with a specific AVS including operator sets and commission",
+        "operationId": "OperatorsController_getAVSDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avsId",
+            "required": true,
+            "in": "path",
+            "description": "AVS ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operator-AVS detail"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator-AVS detail",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/avs/{avsId}/history": {
+      "get": {
+        "description": "Timeline of registration/unregistration events for an operator with a specific AVS",
+        "operationId": "OperatorsController_getAVSRegistrationHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avsId",
+            "required": true,
+            "in": "path",
+            "description": "AVS ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved registration history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator AVS registration history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/commission": {
+      "get": {
+        "description": "All commission rates for the operator including PI, AVS, and operator set commissions, plus behavioral insights.",
+        "operationId": "OperatorsController_getCommissionOverview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved commission overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionOverviewResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator commission overview",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/commission/history": {
+      "get": {
+        "description": "Historical commission changes for the operator",
+        "operationId": "OperatorsController_getCommissionHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commission_type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by commission type",
+            "schema": {
+              "example": "pi",
+              "type": "string",
+              "enum": [
+                "pi",
+                "avs",
+                "operator_set"
+              ]
+            }
+          },
+          {
+            "name": "avs_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by AVS ID (for AVS commission history)",
+            "schema": {
+              "example": "0x123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": false,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": false,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved commission history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionHistoryResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get commission history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators": {
+      "get": {
+        "description": "All delegators for an operator with filtering, sorting, and pagination",
+        "operationId": "OperatorsController_listDelegators",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by delegator status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "min_shares",
+            "required": false,
+            "in": "query",
+            "description": "Minimum shares",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_shares",
+            "required": false,
+            "in": "query",
+            "description": "Maximum shares",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "description": "Sort by field",
+            "schema": {
+              "default": "tvs",
+              "type": "string",
+              "enum": [
+                "shares",
+                "delegation_date",
+                "tvs"
+              ]
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegators"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List operator delegators",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/history": {
+      "get": {
+        "description": "Historical delegation/undelegation events for the operator",
+        "operationId": "OperatorsController_getDelegationHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "event_type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by event type",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "delegated",
+                "undelegated",
+                "force_undelegated",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "date_from",
+            "required": false,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": false,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegation history"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegation history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/{stakerId}": {
+      "get": {
+        "description": "Detailed view of a specific delegator's relationship with the operator",
+        "operationId": "OperatorsController_getDelegatorDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stakerId",
+            "required": true,
+            "in": "path",
+            "description": "Staker ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegator detail"
+          },
+          "404": {
+            "description": "Operator or delegator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegator detail",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/{stakerId}/exposure": {
+      "get": {
+        "description": "Shows a delegator's risk exposure through this operator, including per-AVS exposure and potential slashing impact",
+        "operationId": "OperatorsController_getDelegatorExposure",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stakerId",
+            "required": true,
+            "in": "path",
+            "description": "Staker ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegator exposure"
+          },
+          "404": {
+            "description": "Operator or delegator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegator risk exposure",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/allocations": {
+      "get": {
+        "description": "Summary of all allocations grouped by AVS and strategy with utilization metrics",
+        "operationId": "OperatorsController_getAllocationsOverview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved allocations overview"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator allocations overview",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/allocations/detailed": {
+      "get": {
+        "description": "Granular allocation records with filtering, sorting, and pagination",
+        "operationId": "OperatorsController_listDetailedAllocations",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "avs_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by AVS ID",
+            "schema": {
+              "example": "0x123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategy_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by strategy ID",
+            "schema": {
+              "example": "0x456...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_magnitude",
+            "required": false,
+            "in": "query",
+            "description": "Minimum magnitude",
+            "schema": {
+              "example": 1000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_magnitude",
+            "required": false,
+            "in": "query",
+            "description": "Maximum magnitude",
+            "schema": {
+              "example": 1000000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "description": "Sort by field",
+            "schema": {
+              "default": "magnitude",
+              "type": "string",
+              "enum": [
+                "magnitude",
+                "effect_block",
+                "allocated_at"
+              ]
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved detailed allocations"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List detailed allocations",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/risk": {
+      "get": {
+        "description": "Current risk metrics and scores including component breakdowns and key metrics",
+        "operationId": "OperatorsController_getRiskAssessment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for risk assessment (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved risk assessment"
+          },
+          "404": {
+            "description": "Operator not found or no risk assessment available"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator risk assessment",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/concentration": {
+      "get": {
+        "description": "Delegation and allocation concentration metrics including HHI, Gini coefficient, and distribution percentiles",
+        "operationId": "OperatorsController_getConcentrationMetrics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "concentration_type",
+            "required": false,
+            "in": "query",
+            "description": "Type of concentration to analyze",
+            "schema": {
+              "default": "delegation",
+              "type": "string",
+              "enum": [
+                "delegation",
+                "allocation_by_avs",
+                "allocation_by_strategy"
+              ]
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for concentration metrics (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved concentration metrics"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get concentration metrics",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/volatility": {
+      "get": {
+        "description": "Volatility measures for operator metrics including 7d, 30d, 90d volatility and trend analysis",
+        "operationId": "OperatorsController_getVolatilityMetrics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metric_type",
+            "required": false,
+            "in": "query",
+            "description": "Type of metric to analyze volatility for",
+            "schema": {
+              "default": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "delegators",
+                "avs_count"
+              ]
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for volatility metrics (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved volatility metrics"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get volatility metrics",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/snapshots/daily": {
+      "get": {
+        "description": "Daily snapshot time series for the operator showing key metrics over time",
+        "operationId": "OperatorsController_getDailySnapshots",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "metrics",
+            "required": false,
+            "in": "query",
+            "description": "Specific metrics to include",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved daily snapshots"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator daily snapshots",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/strategies/{strategyId}/history": {
+      "get": {
+        "description": "TVS changes over time for a specific strategy including utilization rates",
+        "operationId": "OperatorsController_getStrategyTVSHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategyId",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy TVS history"
+          },
+          "404": {
+            "description": "Operator or strategy not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy TVS history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/delegators/{stakerId}/shares/history": {
+      "get": {
+        "description": "Historical shares for a delegator across strategies over time",
+        "operationId": "OperatorsController_getDelegatorSharesHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stakerId",
+            "required": true,
+            "in": "path",
+            "description": "Staker ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": false,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": false,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategy_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by strategy ID",
+            "schema": {
+              "example": "0x123...",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegator shares history"
+          },
+          "404": {
+            "description": "Operator or delegator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get delegator shares history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/avs/{avsId}/timeline": {
+      "get": {
+        "description": "Daily snapshots of operator-AVS relationship showing registration status over time",
+        "operationId": "OperatorsController_getAVSRelationshipTimeline",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avsId",
+            "required": true,
+            "in": "path",
+            "description": "AVS ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved AVS relationship timeline"
+          },
+          "404": {
+            "description": "Operator or AVS not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get AVS relationship timeline",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/allocations/history": {
+      "get": {
+        "description": "Time series of allocation snapshots showing magnitude changes over time",
+        "operationId": "OperatorsController_getAllocationHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "operator_set_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by operator set ID",
+            "schema": {
+              "example": "0x123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategy_id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by strategy ID",
+            "schema": {
+              "example": "0x456...",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved allocation history"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get allocation history",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/slashing": {
+      "get": {
+        "description": "All slashing incidents for the operator with amounts by strategy",
+        "operationId": "OperatorsController_getSlashingIncidents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved slashing incidents"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get slashing incidents",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/compare": {
+      "post": {
+        "description": "Side-by-side comparison of multiple operators (2-5) across selected metrics",
+        "operationId": "OperatorsController_compareOperators",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareOperatorsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully compared operators"
+          },
+          "400": {
+            "description": "Invalid operator IDs or comparison parameters"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Compare operators",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/rankings": {
+      "get": {
+        "description": "Percentile rankings for the operator across various metrics relative to network",
+        "operationId": "OperatorsController_getOperatorRankings",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for rankings (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved rankings"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operator percentile rankings",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{id}/vs-network": {
+      "get": {
+        "description": "Compare operator metrics to network mean and median values",
+        "operationId": "OperatorsController_compareOperatorToNetwork",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Operator ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for comparison (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved network comparison"
+          },
+          "404": {
+            "description": "Operator not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Compare operator to network averages",
+        "tags": [
+          "Operators"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "description": "Search across operators, AVS, and stakers by address or name",
+        "operationId": "SearchController_globalSearch",
+        "parameters": [
+          {
+            "name": "query",
+            "required": true,
+            "in": "query",
+            "description": "Search query term",
+            "schema": {
+              "example": "operator",
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity_types",
+            "required": false,
+            "in": "query",
+            "description": "Filter by entity types",
+            "schema": {
+              "example": [
+                "operators",
+                "avs"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "operators",
+                  "avs",
+                  "stakers"
+                ]
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Maximum number of results",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved search results"
+          },
+          "400": {
+            "description": "Invalid search query"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Global search",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/v1/search/leaderboard": {
+      "get": {
+        "description": "Leaderboard of top operators ranked by various metrics",
+        "operationId": "SearchController_getLeaderboard",
+        "parameters": [
+          {
+            "name": "metric",
+            "required": true,
+            "in": "query",
+            "description": "Metric to rank by",
+            "schema": {
+              "example": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "delegators",
+                "avs_count",
+                "operational_days",
+                "risk_score"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Maximum number of operators",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "example": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for leaderboard (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved leaderboard"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get top operators leaderboard",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/v1/search/trending": {
+      "get": {
+        "description": "Operators with significant recent growth or activity based on selected metric",
+        "operationId": "SearchController_getTrending",
+        "parameters": [
+          {
+            "name": "timeframe",
+            "required": false,
+            "in": "query",
+            "description": "Timeframe for trend analysis",
+            "schema": {
+              "default": "30d",
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ]
+            }
+          },
+          {
+            "name": "metric",
+            "required": false,
+            "in": "query",
+            "description": "Metric to analyze for trending",
+            "schema": {
+              "default": "tvs_growth",
+              "type": "string",
+              "enum": [
+                "tvs_growth",
+                "delegator_growth",
+                "avs_growth"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Maximum number of operators",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved trending operators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get trending operators",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/v1/search/recent-activity": {
+      "get": {
+        "description": "Operators with recent activity events within specified timeframe",
+        "operationId": "SearchController_getRecentActivity",
+        "parameters": [
+          {
+            "name": "activity_types",
+            "required": false,
+            "in": "query",
+            "description": "Filter by activity types",
+            "schema": {
+              "example": [
+                "registration",
+                "allocation"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "registration",
+                  "allocation",
+                  "commission",
+                  "metadata"
+                ]
+              }
+            }
+          },
+          {
+            "name": "hours",
+            "required": false,
+            "in": "query",
+            "description": "Number of hours to look back",
+            "schema": {
+              "minimum": 1,
+              "maximum": 168,
+              "default": 24,
+              "example": 24,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Maximum number of operators",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "example": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved recently active operators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get recently active operators",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/v1/network/stats": {
+      "get": {
+        "description": "Current network-wide statistics including operators, TVS, delegation, and commission metrics",
+        "operationId": "NetworkController_getNetworkStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved network statistics"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get network-wide statistics",
+        "tags": [
+          "Network"
+        ]
+      }
+    },
+    "/api/v1/network/distribution": {
+      "get": {
+        "description": "Distribution statistics for network metrics including percentiles and histogram",
+        "operationId": "NetworkController_getNetworkDistribution",
+        "parameters": [
+          {
+            "name": "metric",
+            "required": true,
+            "in": "query",
+            "description": "Metric to analyze distribution for",
+            "schema": {
+              "example": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "delegators",
+                "avs_count"
+              ]
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Date for distribution (ISO 8601 format). Defaults to latest.",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved network distribution"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get network distribution",
+        "tags": [
+          "Network"
+        ]
+      }
+    },
+    "/api/v1/network/history": {
+      "get": {
+        "description": "Time series of network-wide metrics showing growth and trends over time",
+        "operationId": "NetworkController_getNetworkHistory",
+        "parameters": [
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "metrics",
+            "required": false,
+            "in": "query",
+            "description": "Specific metrics to include",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved network history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get network daily aggregates history",
+        "tags": [
+          "Network"
+        ]
+      }
+    },
+    "/api/v1/strategies/stats": {
+      "get": {
+        "description": "Network-wide strategy statistics including total TVS and top strategies",
+        "operationId": "StrategiesController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy statistics"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get network strategy statistics",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies": {
+      "get": {
+        "description": "List all EigenLayer strategies with TVS, operator counts, and token metadata",
+        "operationId": "StrategiesController_findAll",
+        "parameters": [
+          {
+            "name": "min_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Minimum total TVS in USD",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_tvs",
+            "required": false,
+            "in": "query",
+            "description": "Maximum total TVS in USD",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "min_operators",
+            "required": false,
+            "in": "query",
+            "description": "Minimum number of operators",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Filter by token category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search by address, symbol, or name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "has_price_feed",
+            "required": false,
+            "in": "query",
+            "description": "Filter by price feed availability",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "tvs",
+              "type": "string",
+              "enum": [
+                "tvs",
+                "operator_count",
+                "delegator_count"
+              ]
+            }
+          },
+          {
+            "name": "sort_order",
+            "required": false,
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategies list"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all strategies with filters and pagination",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}": {
+      "get": {
+        "description": "Detailed information about a specific strategy including token metadata and links",
+        "operationId": "StrategiesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved strategy detail"
+          },
+          "404": {
+            "description": "Strategy not found"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy detail",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/operators": {
+      "get": {
+        "description": "List operators that have delegated to this strategy, sorted by TVS",
+        "operationId": "StrategiesController_getOperators",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved operators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get operators using strategy",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/delegators": {
+      "get": {
+        "description": "List delegators (stakers) who have staked in this strategy, sorted by shares",
+        "operationId": "StrategiesController_getDelegators",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of items to skip",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved delegators"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get top delegators for strategy",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/price-history": {
+      "get": {
+        "description": "Historical price data for the strategy's underlying token",
+        "operationId": "StrategiesController_getPriceHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved price history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get token price history",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/strategies/{id}/tvs-history": {
+      "get": {
+        "description": "Historical TVS (Total Value Secured) for the strategy across all operators",
+        "operationId": "StrategiesController_getTVSHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Strategy ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_from",
+            "required": true,
+            "in": "query",
+            "description": "Start date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "required": true,
+            "in": "query",
+            "description": "End date (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved TVS history"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get strategy TVS history",
+        "tags": [
+          "Strategies"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Check overall system health",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/database": {
+      "get": {
+        "operationId": "HealthController_checkDatabase",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Check database health",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/redis": {
+      "get": {
+        "operationId": "HealthController_checkRedis",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Check Redis health",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/user/profile": {
+      "put": {
+        "operationId": "UserController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user profile",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/preferences": {
+      "get": {
+        "operationId": "UserController_getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get user preferences",
+        "tags": [
+          "User"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user preferences",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions": {
+      "get": {
+        "operationId": "UserController_getSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List active sessions",
+        "tags": [
+          "User"
+        ]
+      },
+      "delete": {
+        "operationId": "UserController_revokeAllSessions",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke all other sessions",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/sessions/{id}": {
+      "delete": {
+        "operationId": "UserController_revokeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a specific session",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/user/account": {
+      "delete": {
+        "operationId": "UserController_deleteAccount",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete user account",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/payments/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyPayment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a USDC payment on Base",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/paystack/initialize": {
+      "post": {
+        "operationId": "PaymentsController_initializePaystack",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializePaystackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Initialize a Paystack payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/paystack/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyPaystack",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a Paystack payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/flutterwave/initialize": {
+      "post": {
+        "operationId": "PaymentsController_initializeFlutterwave",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Initialize a Flutterwave payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/flutterwave/verify": {
+      "post": {
+        "operationId": "PaymentsController_verifyFlutterwave",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verify a Flutterwave payment",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/flutterwave/webhook": {
+      "post": {
+        "operationId": "PaymentsController_handleFlutterwaveWebhook",
+        "parameters": [
+          {
+            "name": "verf-hash",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "verif-hash",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Handle Flutterwave webhooks",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "FeedbackController_submitFeedback",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Submit user feedback",
+        "tags": [
+          "Feedback"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "EigenWatch API",
+    "description": "API for comprehensive EigenLayer operator analytics, performance tracking, and network insights",
+    "version": "1.0",
+    "contact": {
+      "name": "EigenWatch Team",
+      "url": "https://eigenwatch.xyz",
+      "email": "eigenwatchteam@gmail.com"
+    }
+  },
+  "tags": [
+    {
+      "name": "Operators",
+      "description": "Operator discovery and analytics"
+    },
+    {
+      "name": "Network",
+      "description": "Network-wide statistics"
+    },
+    {
+      "name": "Health",
+      "description": "System health checks"
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Development"
+    },
+    {
+      "url": "https://api-staging.eigenwatch.xyz",
+      "description": "Staging"
+    },
+    {
+      "url": "https://api.eigenwatch.xyz",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "api-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key for authentication"
+      },
+      "jwt": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "JWT token from wallet signature"
+      }
+    },
+    "schemas": {
+      "ChallengeRequestDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "VerifySignatureDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Ethereum wallet address",
+            "example": "0x1234567890abcdef1234567890abcdef12345678"
+          },
+          "signature": {
+            "type": "string",
+            "description": "Signed message signature"
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Nonce from challenge response"
+          }
+        },
+        "required": [
+          "address",
+          "signature",
+          "nonce"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "description": "Refresh token"
+          }
+        }
+      },
+      "AddEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to add",
+            "example": "user@example.com"
+          },
+          "risk_alerts": {
+            "type": "boolean",
+            "description": "Opt-in for risk alerts",
+            "default": true
+          },
+          "marketing": {
+            "type": "boolean",
+            "description": "Opt-in for marketing emails",
+            "default": false
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "VerifyEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to verify",
+            "example": "user@example.com"
+          },
+          "code": {
+            "type": "string",
+            "description": "6-digit verification code",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ]
+      },
+      "ResendVerificationDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to resend verification for",
+            "example": "user@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "PICommissionDto": {
+        "type": "object",
+        "properties": {
+          "current_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "Current commission in basis points"
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "total_changes": {
+            "type": "number",
+            "example": 5,
+            "description": "Total number of times commission has changed"
+          }
+        },
+        "required": [
+          "current_bips",
+          "activated_at",
+          "total_changes"
+        ]
+      },
+      "AVSCommissionDto": {
+        "type": "object",
+        "properties": {
+          "avs_id": {
+            "type": "string",
+            "example": "0x123..."
+          },
+          "avs_name": {
+            "type": "string",
+            "example": "EigenDA"
+          },
+          "current_bips": {
+            "type": "number",
+            "example": 500
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "upcoming_bips": {
+            "type": "number",
+            "example": 600,
+            "nullable": true
+          },
+          "upcoming_activated_at": {
+            "type": "string",
+            "example": "2024-02-01T00:00:00Z",
+            "nullable": true
+          },
+          "total_changes": {
+            "type": "number",
+            "example": 3,
+            "description": "Total number of times this AVS commission has changed"
+          },
+          "first_set_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z",
+            "nullable": true,
+            "description": "When this commission was first set"
+          }
+        },
+        "required": [
+          "avs_id",
+          "avs_name",
+          "current_bips",
+          "activated_at",
+          "upcoming_bips",
+          "upcoming_activated_at",
+          "total_changes",
+          "first_set_at"
+        ]
+      },
+      "OperatorSetCommissionDto": {
+        "type": "object",
+        "properties": {
+          "operator_set_id": {
+            "type": "string",
+            "example": "0xabc..."
+          },
+          "avs_name": {
+            "type": "string",
+            "example": "EigenDA"
+          },
+          "operator_set_number": {
+            "type": "number",
+            "example": 1
+          },
+          "current_bips": {
+            "type": "number",
+            "example": 200
+          },
+          "activated_at": {
+            "type": "string",
+            "example": "2024-01-01T00:00:00Z"
+          }
+        },
+        "required": [
+          "operator_set_id",
+          "avs_name",
+          "operator_set_number",
+          "current_bips",
+          "activated_at"
+        ]
+      },
+      "CommissionBehaviorProfileDto": {
+        "type": "object",
+        "properties": {
+          "days_since_last_change": {
+            "type": "number",
+            "example": 450,
+            "description": "Days since the last commission change. High = Stable."
+          },
+          "changes_last_12m": {
+            "type": "number",
+            "example": 2,
+            "description": "Number of rate changes in the last 1 year"
+          },
+          "max_historical_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "The highest commission rate ever observed for this operator"
+          },
+          "is_change_pending": {
+            "type": "boolean",
+            "example": false,
+            "description": "True if there is a pending commission change"
+          }
+        },
+        "required": [
+          "days_since_last_change",
+          "changes_last_12m",
+          "max_historical_bips",
+          "is_change_pending"
+        ]
+      },
+      "NetworkBenchmarksDto": {
+        "type": "object",
+        "properties": {
+          "mean_pi_commission_bips": {
+            "type": "number",
+            "example": 1200,
+            "description": "Mean PI commission across all operators (bips)"
+          },
+          "median_pi_commission_bips": {
+            "type": "number",
+            "example": 1000,
+            "description": "Median PI commission across all operators (bips)"
+          },
+          "p25_pi_commission_bips": {
+            "type": "number",
+            "example": 500,
+            "description": "25th percentile PI commission (bips)"
+          },
+          "p75_pi_commission_bips": {
+            "type": "number",
+            "example": 1500,
+            "description": "75th percentile PI commission (bips)"
+          },
+          "p90_pi_commission_bips": {
+            "type": "number",
+            "example": 2000,
+            "description": "90th percentile PI commission (bips)"
+          }
+        },
+        "required": [
+          "mean_pi_commission_bips",
+          "median_pi_commission_bips",
+          "p25_pi_commission_bips",
+          "p75_pi_commission_bips",
+          "p90_pi_commission_bips"
+        ]
+      },
+      "CommissionSourceBreakdownDto": {
+        "type": "object",
+        "properties": {
+          "usd_amount": {
+            "type": "string",
+            "example": "1250000.00",
+            "description": "USD amount under this commission source"
+          },
+          "pct_of_total": {
+            "type": "string",
+            "example": "45.5",
+            "description": "Percentage of total allocations"
+          }
+        },
+        "required": [
+          "usd_amount",
+          "pct_of_total"
+        ]
+      },
+      "AllocationByCommissionSourceDto": {
+        "type": "object",
+        "properties": {
+          "pi": {
+            "description": "Allocations using PI commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          },
+          "avs": {
+            "description": "Allocations using AVS-specific commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          },
+          "operator_set": {
+            "description": "Allocations using Operator Set commission",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionSourceBreakdownDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pi",
+          "avs",
+          "operator_set"
+        ]
+      },
+      "CommissionImpactAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "weighted_average_commission_bips": {
+            "type": "number",
+            "example": 850,
+            "description": "Weighted average commission across all allocations (bips)"
+          },
+          "weighted_average_commission_pct": {
+            "type": "string",
+            "example": "8.50",
+            "description": "Weighted average commission as percentage"
+          },
+          "allocation_by_commission_source": {
+            "description": "Breakdown of allocations by commission source",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AllocationByCommissionSourceDto"
+              }
+            ]
+          },
+          "vs_network_average": {
+            "type": "string",
+            "enum": [
+              "lower",
+              "similar",
+              "higher"
+            ],
+            "description": "How this operator's commission compares to network average"
+          },
+          "percentile_rank": {
+            "type": "number",
+            "example": 65,
+            "description": "Percentile rank (e.g., 65 means lower commission than 65% of operators)"
+          }
+        },
+        "required": [
+          "weighted_average_commission_bips",
+          "weighted_average_commission_pct",
+          "allocation_by_commission_source",
+          "vs_network_average",
+          "percentile_rank"
+        ]
+      },
+      "CommissionOverviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "pi_commission": {
+            "description": "Programmatic Incentive commission details",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PICommissionDto"
+              }
+            ]
+          },
+          "avs_commissions": {
+            "description": "List of AVS-specific commissions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AVSCommissionDto"
+            }
+          },
+          "operator_set_commissions": {
+            "description": "List of Operator Set commissions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorSetCommissionDto"
+            }
+          },
+          "behavior_profile": {
+            "description": "High-level insights for risk dashboards",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionBehaviorProfileDto"
+              }
+            ]
+          },
+          "network_benchmarks": {
+            "description": "Network-wide benchmark statistics for PI commissions",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NetworkBenchmarksDto"
+              }
+            ]
+          },
+          "impact_analysis": {
+            "description": "Analysis of commission impact on delegators (weighted by allocation value)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionImpactAnalysisDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pi_commission",
+          "avs_commissions",
+          "operator_set_commissions",
+          "behavior_profile",
+          "network_benchmarks",
+          "impact_analysis"
+        ]
+      },
+      "CommissionHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "commission_type": {
+            "type": "string",
+            "enum": [
+              "pi",
+              "avs",
+              "operator_set"
+            ]
+          },
+          "avs_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "avs_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "operator_set_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "old_bips": {
+            "type": "number"
+          },
+          "new_bips": {
+            "type": "number"
+          },
+          "change_delta": {
+            "type": "number"
+          },
+          "changed_at": {
+            "type": "string"
+          },
+          "activated_at": {
+            "type": "string"
+          },
+          "activation_delay_seconds": {
+            "type": "number",
+            "nullable": true
+          },
+          "block_number": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "commission_type",
+          "avs_id",
+          "avs_name",
+          "operator_set_id",
+          "old_bips",
+          "new_bips",
+          "change_delta",
+          "changed_at",
+          "activated_at",
+          "activation_delay_seconds",
+          "block_number"
+        ]
+      },
+      "CommissionHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionHistoryItemDto"
+            }
+          }
+        },
+        "required": [
+          "changes"
+        ]
+      },
+      "CompareOperatorsDto": {
+        "type": "object",
+        "properties": {
+          "operator_ids": {
+            "description": "Array of operator IDs to compare (2-5 operators)",
+            "example": [
+              "operator_1",
+              "operator_2",
+              "operator_3"
+            ],
+            "minItems": 2,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metrics": {
+            "description": "Specific metrics to compare",
+            "example": [
+              "tvs",
+              "delegators",
+              "avs_count",
+              "commission",
+              "risk_score"
+            ],
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          }
+        },
+        "required": [
+          "operator_ids"
+        ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "Display name"
+          }
+        }
+      },
+      "UpdatePreferencesDto": {
+        "type": "object",
+        "properties": {
+          "risk_alerts_operator_changes": {
+            "type": "boolean"
+          },
+          "risk_alerts_slashing": {
+            "type": "boolean"
+          },
+          "risk_alerts_tvs_changes": {
+            "type": "boolean"
+          },
+          "watchlist_daily_summary": {
+            "type": "boolean"
+          },
+          "watchlist_status_changes": {
+            "type": "boolean"
+          },
+          "product_updates": {
+            "type": "boolean"
+          },
+          "newsletter": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VerifyPaymentDto": {
+        "type": "object",
+        "properties": {
+          "txHash": {
+            "type": "string",
+            "description": "The transaction hash of the USDC transfer on Base",
+            "example": "0x..."
+          }
+        },
+        "required": [
+          "txHash"
+        ]
+      },
+      "InitializePaystackDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "The email address of the user making the payment"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "CreateFeedbackDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GENERAL",
+              "INLINE",
+              "PAYWALL",
+              "FEATURE_REQUEST"
+            ]
+          },
+          "sentiment": {
+            "type": "string",
+            "enum": [
+              "POSITIVE",
+              "NEGATIVE"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "description": "Feedback category (e.g. data_quality, missing_feature)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Free-text feedback message"
+          },
+          "page_url": {
+            "type": "string",
+            "description": "Page URL where feedback was given"
+          },
+          "section_id": {
+            "type": "string",
+            "description": "Section identifier for inline feedback"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata (e.g. paywall selections)"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      }
+    }
+  }
+}

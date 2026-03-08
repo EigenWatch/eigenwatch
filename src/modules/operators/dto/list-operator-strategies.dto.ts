@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsNumber, Min } from "class-validator";
+import { IsOptional, IsEnum, IsNumber, Min, IsIn } from "class-validator";
 import { Type } from "class-transformer";
 import { ApiPropertyOptional } from "@nestjs/swagger";
 
@@ -8,7 +8,9 @@ export enum StrategySortField {
   ENCUMBERED = "encumbered",
 }
 
-export class ListOperatorStrategiesDto {
+import { PaginationDto } from "@/shared/dto/pagination.dto";
+
+export class ListOperatorStrategiesDto extends PaginationDto {
   @ApiPropertyOptional({ description: "Minimum TVS" })
   @IsOptional()
   @Type(() => Number)
@@ -44,4 +46,12 @@ export class ListOperatorStrategiesDto {
   @IsOptional()
   @IsEnum(StrategySortField)
   sort_by?: StrategySortField = StrategySortField.TVS;
+
+  @ApiPropertyOptional({
+    enum: ["asc", "desc"],
+    default: "desc",
+  })
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sort_order?: "asc" | "desc" = "desc";
 }

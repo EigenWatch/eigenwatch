@@ -3,11 +3,10 @@ import { NetworkService } from "./network.service";
 import { NetworkController } from "./network.controller";
 import { NetworkRepository } from "./repositories/network.repository";
 import { NetworkMapper } from "./mappers/network.mapper";
-import { PrismaService } from "@/core/database/prisma.service";
 
 @Module({
   controllers: [NetworkController],
-  providers: [NetworkService, NetworkRepository, NetworkMapper, PrismaService],
+  providers: [NetworkService, NetworkRepository, NetworkMapper],
   exports: [NetworkService],
 })
 export class NetworkModule {}

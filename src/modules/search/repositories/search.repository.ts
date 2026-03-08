@@ -3,12 +3,12 @@
 // NEW FILE: SRC/MODULES/SEARCH/REPOSITORIES/SEARCH.REPOSITORY.TS
 // ============================================================================
 import { BaseRepository } from "@/core/common/base.repository";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class SearchRepository extends BaseRepository<any> {
-  constructor(protected prisma: PrismaService) {
+  constructor(protected prisma: PrismaAnalyticsService) {
     super(prisma);
   }
 

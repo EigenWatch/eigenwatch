@@ -13,6 +13,7 @@ import {
 import { ResponseHelper } from "@/core/responses/response.helper";
 import { NetworkService } from "./network.service";
 import { Public } from "@/core/decorators/public.decorator";
+import { RequireAuth } from "@/core/decorators/require-auth.decorator";
 
 @ApiTags("Network")
 @Controller("network")
@@ -48,7 +49,7 @@ export class NetworkController {
    * Endpoint 30: Get Network Distribution
    */
   @Get("distribution")
-  @Public()
+  @RequireAuth()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get network distribution",
@@ -74,7 +75,7 @@ export class NetworkController {
    * Endpoint 31: Get Network Daily Aggregates History
    */
   @Get("history")
-  @Public()
+  @RequireAuth()
   @ApiSecurity("api-key")
   @ApiOperation({
     summary: "Get network daily aggregates history",

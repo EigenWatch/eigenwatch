@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseService } from "@/core/common/base.service";
 import { OperatorNotFoundException } from "@/shared/errors/app.exceptions";
 import { PaginationParams } from "@/shared/types/query.types";
-import { Injectable, Inject } from "@nestjs/common";
+import { UserTier } from "@/shared/types/auth.types";
+import { Injectable, Logger } from "@nestjs/common";
 import { ListOperatorStrategiesDto } from "./dto/list-operator-strategies.dto";
 import { ListOperatorsDto } from "./dto/list-operators.dto";
 import {
@@ -17,36 +17,64 @@ import {
 } from "./entities/strategy.entities";
 import { OperatorMapper } from "./mappers/operator.mapper";
 import { PrismaOperatorRepository } from "./repositories/operators.repository";
+import { OperatorStrategyRepository } from "./repositories/operator-strategy.repository";
+import { OperatorDelegatorRepository } from "./repositories/operator-delegator.repository";
+import { OperatorAVSRepository } from "./repositories/operator-avs.repository";
+import { OperatorAllocationRepository } from "./repositories/operator-allocation.repository";
+import { OperatorAnalyticsRepository } from "./repositories/operator-analytics.repository";
 import {
   AVSRelationshipListItem,
   AVSRelationshipDetail,
   AVSRegistrationHistoryItem,
 } from "./entities/avs.entities";
+import { OperatorAllocationsOverview } from "./entities/allocation.entities";
+import { PaginationHelper } from "@/core/common/pagination.helper";
+
+import { CacheService } from "@/core/cache/cache.service";
 
 @Injectable()
 export class OperatorService extends BaseService<any> {
+  private readonly logger = new Logger(OperatorService.name);
   constructor(
-    @Inject("OperatorRepository")
-    private operatorRepository: PrismaOperatorRepository,
-    private operatorMapper: OperatorMapper
+    private readonly operatorRepository: PrismaOperatorRepository,
+    private readonly operatorStrategyRepository: OperatorStrategyRepository,
+    private readonly operatorDelegatorRepository: OperatorDelegatorRepository,
+    private readonly operatorAVSRepository: OperatorAVSRepository,
+    private readonly operatorAllocationRepository: OperatorAllocationRepository,
+    private readonly operatorAnalyticsRepository: OperatorAnalyticsRepository,
+    private readonly operatorMapper: OperatorMapper,
+    private readonly cacheService: CacheService,
   ) {
     super(operatorRepository);
   }
 
   async findOperators(
     filters: ListOperatorsDto,
-    pagination: PaginationParams
+    pagination: PaginationParams,
   ): Promise<{ operators: OperatorListItem[]; total: number }> {
+    const cacheKey = `operators:list:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}`;
+    const cached = await this.cacheService.get<{
+      operators: OperatorListItem[];
+      total: number;
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     const [operators, total] = await Promise.all([
       this.operatorRepository.findMany(filters, pagination),
       this.operatorRepository.count(filters),
     ]);
 
     const mapped = await Promise.all(
-      operators.map((op) => this.operatorMapper.mapToListItem(op))
+      operators.map((op) => this.operatorMapper.mapToListItem(op)),
     );
 
-    return { operators: mapped, total };
+    const result = { operators: mapped, total };
+    await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+
+    return result;
   }
 
   async findOperatorById(id: string): Promise<OperatorOverview> {
@@ -60,19 +88,36 @@ export class OperatorService extends BaseService<any> {
   }
 
   async getOperatorStats(operatorId: string): Promise<OperatorStatistics> {
-    const operator = await this.operatorRepository.findById(operatorId);
+    const operator =
+      await this.operatorRepository.findByIdWithStats(operatorId);
 
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    return this.operatorMapper.mapToStatistics(operator);
+    return await this.operatorMapper.mapToStatistics(operator);
   }
 
   async findOperatorStrategies(
     operatorId: string,
-    filters: ListOperatorStrategiesDto
-  ): Promise<OperatorStrategyListItem[]> {
+    filters: ListOperatorStrategiesDto,
+    tier: UserTier = "FREE",
+  ): Promise<any> {
+    const cacheKey = `operators:strategies:${operatorId}:${JSON.stringify(filters)}`;
+    const cached = await this.cacheService.get<{
+      strategies: OperatorStrategyListItem[];
+      total: number;
+    }>(cacheKey);
+
+    if (cached) {
+      return this.wrapStrategiesResponse(
+        cached.strategies,
+        cached.total,
+        { limit: filters.limit || 50, offset: filters.offset || 0 },
+        tier,
+      );
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -80,74 +125,142 @@ export class OperatorService extends BaseService<any> {
     }
 
     const strategies =
-      await this.operatorRepository.findStrategiesByOperator(operatorId);
+      await this.operatorStrategyRepository.findStrategiesByOperator(
+        operatorId,
+      );
 
-    // Get delegator counts for each strategy
-    const strategiesWithCounts = await Promise.all(
-      strategies.map(async (strategy) => {
-        const count = await this.operatorRepository.countDelegatorsByStrategy(
-          operatorId,
-          strategy.strategy_id
-        );
-        return this.operatorMapper.mapToStrategyListItem(strategy, count);
-      })
-    );
+    // Batch fetch delegator counts for all strategies in one query
+    const strategyIds = strategies.map((s) => s.strategy_id);
+    const delegatorCounts =
+      await this.operatorStrategyRepository.countDelegatorsByStrategies(
+        operatorId,
+        strategyIds,
+      );
+
+    // Preload strategy metadata (symbols, logos) before mapping
+    const strategyAddresses = strategies
+      .map((s) => s.strategies?.address)
+      .filter(Boolean);
+    await this.operatorMapper.preloadStrategyMetadata(strategyAddresses);
+
+    const strategiesWithCounts = strategies.map((strategy) => {
+      const delegatorCount = delegatorCounts.get(strategy.strategy_id) || 0;
+      return this.operatorMapper.mapToStrategyListItem(
+        strategy,
+        delegatorCount,
+      );
+    });
 
     // Apply filters
     let filtered = strategiesWithCounts;
 
     if (filters.min_tvs !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.max_magnitude) >= filters.min_tvs!
+        (s) => parseFloat(s.tvs_usd || "0") >= filters.min_tvs!,
       );
     }
 
     if (filters.max_tvs !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.max_magnitude) <= filters.max_tvs!
+        (s) => parseFloat(s.tvs_usd || "0") <= filters.max_tvs!,
       );
     }
 
     if (filters.min_utilization !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.utilization_rate) >= filters.min_utilization!
+        (s) => parseFloat(s.utilization_rate) >= filters.min_utilization!,
       );
     }
 
     if (filters.max_utilization !== undefined) {
       filtered = filtered.filter(
-        (s) => parseFloat(s.utilization_rate) <= filters.max_utilization!
+        (s) => parseFloat(s.utilization_rate) <= filters.max_utilization!,
       );
     }
 
     // Apply sorting
+    const direction = filters.sort_order === "asc" ? 1 : -1;
     switch (filters.sort_by) {
       case "utilization":
         filtered.sort(
           (a, b) =>
-            parseFloat(b.utilization_rate) - parseFloat(a.utilization_rate)
+            direction *
+            (parseFloat(a.utilization_rate) - parseFloat(b.utilization_rate)),
         );
         break;
       case "encumbered":
         filtered.sort(
           (a, b) =>
-            parseFloat(b.encumbered_magnitude) -
-            parseFloat(a.encumbered_magnitude)
+            direction *
+            (parseFloat(a.encumbered_magnitude) -
+              parseFloat(b.encumbered_magnitude)),
         );
         break;
       case "tvs":
       default:
         filtered.sort(
-          (a, b) => parseFloat(b.max_magnitude) - parseFloat(a.max_magnitude)
+          (a, b) =>
+            direction *
+            (parseFloat(a.tvs_usd || "0") - parseFloat(b.tvs_usd || "0")),
         );
     }
 
-    return filtered;
+    const total = filtered.length;
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    const sliced = filtered.slice(offset, offset + limit);
+
+    await this.cacheService.set(cacheKey, { strategies: sliced, total }, 300); // 5 minutes TTL
+
+    return this.wrapStrategiesResponse(sliced, total, { limit, offset }, tier);
+  }
+
+  private wrapStrategiesResponse(
+    strategies: OperatorStrategyListItem[],
+    total: number,
+    pagination: { limit: number; offset: number },
+    tier: UserTier,
+  ) {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
+    const paginationMeta = PaginationHelper.buildMeta(
+      total,
+      pagination.limit,
+      pagination.offset,
+    );
+
+    if (normalizedTier === "FREE") {
+      return {
+        total_strategies: total,
+        pagination: paginationMeta,
+        distribution: strategies.map((s) => ({
+          strategy_address: s.strategy_address,
+          token_symbol: s.strategy_symbol,
+          tvs_percentage: s.utilization_rate,
+        })),
+        strategies: null,
+        tier_context: {
+          user_tier: "FREE",
+          gated_fields: ["strategies"],
+          upgrade_message: "Unlock full strategy details with EigenWatch Pro",
+        },
+      };
+    }
+
+    return {
+      total_strategies: total,
+      pagination: paginationMeta,
+      distribution: null,
+      strategies,
+      tier_context: {
+        user_tier: normalizedTier,
+        gated_fields: [],
+      },
+    };
   }
 
   async getStrategyDetail(
     operatorId: string,
-    strategyId: string
+    strategyId: string,
   ): Promise<OperatorStrategyDetail> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -156,29 +269,30 @@ export class OperatorService extends BaseService<any> {
     }
 
     // Get strategy state
-    const strategyState = await this.operatorRepository.findStrategyByOperator(
-      operatorId,
-      strategyId
-    );
+    const strategy =
+      await this.operatorStrategyRepository.findStrategyByOperator(
+        operatorId,
+        strategyId,
+      );
 
-    if (!strategyState) {
+    if (!strategy) {
       throw new Error(
-        `Strategy ${strategyId} not found for operator ${operatorId}`
+        `Strategy ${strategyId} not found for operator ${operatorId}`,
       );
     }
 
     // Get allocations
     const allocations =
-      await this.operatorRepository.findAllocationsByOperatorStrategy(
+      await this.operatorAllocationRepository.findAllocationsByOperatorStrategy(
         operatorId,
-        strategyId
+        strategyId,
       );
 
     // Get delegators
     const delegators =
-      await this.operatorRepository.findDelegatorsByOperatorStrategy(
+      await this.operatorDelegatorRepository.findDelegatorsByOperatorStrategy(
         operatorId,
-        strategyId
+        strategyId,
       );
 
     // Calculate total shares
@@ -187,10 +301,10 @@ export class OperatorService extends BaseService<any> {
       .toString();
 
     return this.operatorMapper.mapToStrategyDetail(
-      strategyState,
+      strategy,
       allocations,
       delegators,
-      totalShares
+      totalShares,
     );
   }
 
@@ -198,7 +312,7 @@ export class OperatorService extends BaseService<any> {
     operatorId: string,
     activityTypes?: string[],
     limit: number = 50,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<{ activities: OperatorActivity[]; total: number }> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -206,15 +320,16 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const activities = await this.operatorRepository.findOperatorActivities(
-      operatorId,
-      activityTypes,
-      limit,
-      offset
-    );
+    const activities =
+      await this.operatorAnalyticsRepository.findOperatorActivities(
+        operatorId,
+        activityTypes,
+        limit,
+        offset,
+      );
 
     const mapped = activities.map((activity) =>
-      this.operatorMapper.mapToActivity(activity)
+      this.operatorMapper.mapToActivity(activity),
     );
 
     return {
@@ -226,49 +341,102 @@ export class OperatorService extends BaseService<any> {
   async findOperatorAVSRelationships(
     operatorId: string,
     status?: string,
-    sortBy?: string
-  ): Promise<AVSRelationshipListItem[]> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
-    }
+    sortBy?: string,
+    tier: UserTier = "FREE",
+    pagination?: PaginationParams,
+  ): Promise<any> {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
+    const cacheKey = `operators:avs-relationships:${operatorId}:${status || "all"}:${sortBy || "default"}`;
+    const cached =
+      await this.cacheService.get<AVSRelationshipListItem[]>(cacheKey);
 
-    const relationships =
-      await this.operatorRepository.findOperatorAVSRelationships(
-        operatorId,
-        status
+    let mapped: AVSRelationshipListItem[];
+
+    if (cached) {
+      mapped = cached;
+    } else {
+      // Verify operator exists
+      const operator = await this.operatorRepository.findById(operatorId);
+      if (!operator) {
+        throw new OperatorNotFoundException(operatorId);
+      }
+
+      const relationships =
+        await this.operatorAVSRepository.findOperatorAVSRelationships(
+          operatorId,
+          status,
+        );
+
+      // Preload AVS metadata before mapping so names/logos resolve correctly
+      const avsIds = relationships
+        .map((rel: any) => rel.avs_id)
+        .filter(Boolean);
+      await this.operatorMapper.preloadAVSMetadata(avsIds);
+
+      mapped = relationships.map((rel) =>
+        this.operatorMapper.mapToAVSRelationshipListItem(rel),
       );
 
-    const mapped = relationships.map((rel) =>
-      this.operatorMapper.mapToAVSRelationshipListItem(rel)
-    );
+      // Apply sorting
+      switch (sortBy) {
+        case "operator_set_count":
+          mapped.sort(
+            (a, b) => b.active_operator_set_count - a.active_operator_set_count,
+          );
+          break;
+        case "registration_cycles":
+          mapped.sort(
+            (a, b) => b.total_registration_cycles - a.total_registration_cycles,
+          );
+          break;
+        case "days_registered":
+        default:
+          mapped.sort(
+            (a, b) => b.total_days_registered - a.total_days_registered,
+          );
+      }
 
-    // Apply sorting
-    switch (sortBy) {
-      case "operator_set_count":
-        mapped.sort(
-          (a, b) => b.active_operator_set_count - a.active_operator_set_count
-        );
-        break;
-      case "registration_cycles":
-        mapped.sort(
-          (a, b) => b.total_registration_cycles - a.total_registration_cycles
-        );
-        break;
-      case "days_registered":
-      default:
-        mapped.sort(
-          (a, b) => b.total_days_registered - a.total_days_registered
-        );
+      await this.cacheService.set(cacheKey, mapped, 300); // 5 minutes TTL
     }
 
-    return mapped;
+    const total = mapped.length;
+    const activeCount = mapped.filter(
+      (r) => r.current_status === "registered",
+    ).length;
+
+    if (normalizedTier === "FREE") {
+      return {
+        total_avs: total,
+        active_avs: activeCount,
+        avs_relationships: null,
+        tier_context: {
+          user_tier: "FREE",
+          gated_fields: ["avs_relationships"],
+          upgrade_message: "Unlock full AVS data with EigenWatch Pro",
+        },
+      };
+    }
+
+    // Apply pagination
+    const limit = pagination?.limit || 20;
+    const offset = pagination?.offset || 0;
+    const paginated = mapped.slice(offset, offset + limit);
+
+    return {
+      total_avs: total,
+      active_avs: activeCount,
+      avs_relationships: paginated,
+      pagination: PaginationHelper.buildMeta(total, limit, offset),
+      tier_context: {
+        user_tier: normalizedTier,
+        gated_fields: [],
+      },
+    };
   }
 
   async getOperatorAVSDetail(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<AVSRelationshipDetail> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -277,32 +445,32 @@ export class OperatorService extends BaseService<any> {
     }
 
     const relationship =
-      await this.operatorRepository.findOperatorAVSRelationship(
+      await this.operatorAVSRepository.findOperatorAVSRelationship(
         operatorId,
-        avsId
+        avsId,
       );
 
     if (!relationship) {
       throw new Error(
-        `AVS relationship not found for operator ${operatorId} and AVS ${avsId}`
+        `AVS relationship not found for operator ${operatorId} and AVS ${avsId}`,
       );
     }
 
     const [operatorSets, commissions] = await Promise.all([
-      this.operatorRepository.findOperatorSetsForAVS(operatorId, avsId),
-      this.operatorRepository.findCommissionsForAVS(operatorId, avsId),
+      this.operatorAVSRepository.findOperatorSetsForAVS(operatorId, avsId),
+      this.operatorAVSRepository.findCommissionsForAVS(operatorId, avsId),
     ]);
 
     return this.operatorMapper.mapToAVSRelationshipDetail(
       relationship,
       operatorSets,
-      commissions
+      commissions,
     );
   }
 
   async getAVSRegistrationHistory(
     operatorId: string,
-    avsId: string
+    avsId: string,
   ): Promise<AVSRegistrationHistoryItem[]> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -310,9 +478,9 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const history = await this.operatorRepository.findAVSRegistrationHistory(
+    const history = await this.operatorAVSRepository.findAVSRegistrationHistory(
       operatorId,
-      avsId
+      avsId,
     );
 
     return this.operatorMapper.mapToAVSRegistrationHistory(history);
@@ -322,17 +490,83 @@ export class OperatorService extends BaseService<any> {
   // COMMISSION METHODS (Endpoints 10-11)
   // ============================================================================
 
-  async getCommissionOverview(operatorId: string): Promise<any> {
+  async getCommissionOverview(
+    operatorId: string,
+    tier: UserTier = "FREE",
+  ): Promise<any> {
+    const normalizedTier = tier.toUpperCase() as UserTier;
+    const cacheKey = `operators:commission:${operatorId}`;
+    const cached = await this.cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      if (normalizedTier === "FREE") {
+        return {
+          current_rate: cached.pi_commission?.current_bips,
+          positioning: cached.pi_commission?.total_changes,
+          detailed_commissions: null,
+          behavioral_insights: null,
+          tier_context: {
+            user_tier: "FREE",
+            gated_fields: ["detailed_commissions", "behavioral_insights"],
+            upgrade_message:
+              "Unlock full commission analysis with EigenWatch Pro",
+          },
+        };
+      }
+      return {
+        ...cached,
+        tier_context: {
+          user_tier: normalizedTier,
+          gated_fields: [],
+        },
+      };
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const commissions =
-      await this.operatorRepository.findCommissionOverview(operatorId);
+    // Fetch commission data and allocations in parallel for impact analysis
+    const [commissions, allocationsData] = await Promise.all([
+      this.operatorAVSRepository.findCommissionOverview(operatorId),
+      this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
+    ]);
 
-    return this.operatorMapper.mapToCommissionOverview(commissions);
+    // Preload AVS metadata so names/logos resolve correctly in commission mapping
+    const avsIds = commissions.rates.map((r: any) => r.avs_id).filter(Boolean);
+    await this.operatorMapper.preloadAVSMetadata(avsIds);
+
+    const overview = this.operatorMapper.mapToCommissionOverview({
+      ...commissions,
+      allocations: allocationsData.allocations,
+    });
+
+    await this.cacheService.set(cacheKey, overview, 300); // 5 minutes TTL
+
+    if (normalizedTier === "FREE") {
+      return {
+        current_rate: overview.pi_commission?.current_bips,
+        positioning: overview.pi_commission?.total_changes,
+        detailed_commissions: null,
+        behavioral_insights: null,
+        tier_context: {
+          user_tier: "FREE",
+          gated_fields: ["detailed_commissions", "behavioral_insights"],
+          upgrade_message:
+            "Unlock full commission analysis with EigenWatch Pro",
+        },
+      };
+    }
+
+    return {
+      ...overview,
+      tier_context: {
+        user_tier: tier,
+        gated_fields: [],
+      },
+    };
   }
 
   async getCommissionHistory(
@@ -342,7 +576,7 @@ export class OperatorService extends BaseService<any> {
       avs_id?: string;
       date_from?: string;
       date_to?: string;
-    }
+    },
   ): Promise<any> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -362,9 +596,9 @@ export class OperatorService extends BaseService<any> {
       this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
     }
 
-    const history = await this.operatorRepository.findCommissionHistory(
+    const history = await this.operatorAVSRepository.findCommissionHistory(
       operatorId,
-      parsedFilters
+      parsedFilters,
     );
 
     return this.operatorMapper.mapToCommissionHistory(history);
@@ -382,9 +616,22 @@ export class OperatorService extends BaseService<any> {
       max_shares?: number;
     },
     pagination: { limit: number; offset: number },
-    sortBy: string = "shares",
-    sortOrder: "asc" | "desc" = "desc"
-  ): Promise<{ delegators: any[]; summary: any }> {
+    sortBy: string = "tvs",
+    sortOrder: "asc" | "desc" = "desc",
+    tier: UserTier = "FREE",
+  ): Promise<{ delegators: any[]; summary: any; tier_context: any }> {
+    const normalizedTier = (tier || "FREE").toUpperCase() as UserTier;
+    const cacheKey = `operators:delegators:${operatorId}:${JSON.stringify(filters)}:${pagination.limit}:${pagination.offset}:${sortBy}:${sortOrder}`;
+    const cached = await this.cacheService.get<{
+      delegators: any[];
+      summary: any;
+      tier_context: any;
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -392,32 +639,56 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [delegators, summary] = await Promise.all([
-      this.operatorRepository.findDelegators(
+      this.operatorDelegatorRepository.findDelegators(
         operatorId,
         filters,
         pagination,
         sortBy,
-        sortOrder
+        sortOrder,
       ),
-      this.operatorRepository.getDelegatorsSummary(operatorId),
+      this.operatorDelegatorRepository.getDelegatorsSummary(operatorId),
     ]);
 
-    // Map delegators with calculated total shares
-    const mapped = delegators.map((d) => {
-      const totalShares = (d.operator_delegator_shares || [])
-        .reduce(
-          (sum: number, share: any) =>
-            sum + parseFloat(share.shares.toString()),
-          0
-        )
-        .toString();
-      return this.operatorMapper.mapToDelegatorListItem(d, totalShares);
-    });
+    // Map delegators — TVS is now pre-computed by the pipeline on operator_delegators
+    const mapped = await Promise.all(
+      delegators.map(async (d: any) => {
+        const totalShares = (d.shares ?? 0).toString();
+        const totalTVS = Number(d.tvs ?? 0);
 
-    return {
+        return this.operatorMapper.mapToDelegatorListItem(
+          d,
+          totalShares,
+          totalTVS,
+        );
+      }),
+    );
+
+    if (normalizedTier === "FREE") {
+      const result = {
+        delegators: [],
+        summary,
+        tier_context: {
+          user_tier: "FREE",
+          gated_fields: ["delegators"],
+          upgrade_message:
+            "Unlock individual delegator data with EigenWatch Pro",
+        },
+      };
+      return result;
+    }
+
+    const result = {
       delegators: mapped,
       summary,
+      tier_context: {
+        user_tier: normalizedTier,
+        gated_fields: [],
+      },
     };
+
+    await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+
+    return result;
   }
 
   async getDelegatorDetail(operatorId: string, stakerId: string): Promise<any> {
@@ -427,18 +698,52 @@ export class OperatorService extends BaseService<any> {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const delegator = await this.operatorRepository.findDelegatorDetail(
-      operatorId,
-      stakerId
-    );
+    const delegator =
+      await this.operatorDelegatorRepository.findDelegatorDetail(
+        operatorId,
+        stakerId,
+      );
 
     if (!delegator) {
       throw new Error(
-        `Delegator ${stakerId} not found for operator ${operatorId}`
+        `Delegator ${stakerId} not found for operator ${operatorId}`,
       );
     }
 
     return this.operatorMapper.mapToDelegatorDetail(delegator);
+  }
+
+  async getDelegatorExposure(
+    operatorId: string,
+    stakerId: string,
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    // Fetch delegator data, allocations, and strategy state in parallel
+    const [delegator, allocationsData, operatorMetadata] = await Promise.all([
+      this.operatorDelegatorRepository.findDelegatorDetail(
+        operatorId,
+        stakerId,
+      ),
+      this.operatorAllocationRepository.findAllocationsOverviewData(operatorId),
+      this.operatorRepository.findById(operatorId),
+    ]);
+
+    if (!delegator) {
+      throw new Error(
+        `Delegator ${stakerId} not found for operator ${operatorId}`,
+      );
+    }
+
+    return this.operatorMapper.mapToDelegatorExposure(
+      delegator,
+      allocationsData,
+      operatorMetadata,
+    );
   }
 
   async getDelegationHistory(
@@ -448,7 +753,7 @@ export class OperatorService extends BaseService<any> {
       date_from?: string;
       date_to?: string;
     },
-    pagination: { limit: number; offset: number }
+    pagination: { limit: number; offset: number },
   ): Promise<{ events: any[]; total: number }> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -468,12 +773,15 @@ export class OperatorService extends BaseService<any> {
     }
 
     const [events, total] = await Promise.all([
-      this.operatorRepository.findDelegationHistory(
+      this.operatorDelegatorRepository.findDelegationHistory(
         operatorId,
         parsedFilters,
-        pagination
+        pagination,
       ),
-      this.operatorRepository.countDelegationHistory(operatorId, parsedFilters),
+      this.operatorDelegatorRepository.countDelegationHistory(
+        operatorId,
+        parsedFilters,
+      ),
     ]);
 
     const mapped = this.operatorMapper.mapToDelegationHistory(events);
@@ -488,17 +796,56 @@ export class OperatorService extends BaseService<any> {
   // ALLOCATION METHODS (Endpoints 15-16)
   // ============================================================================
 
-  async getAllocationsOverview(operatorId: string): Promise<any> {
-    // Verify operator exists
-    const operator = await this.operatorRepository.findById(operatorId);
-    if (!operator) {
-      throw new OperatorNotFoundException(operatorId);
+  async getAllocationsOverview(
+    operatorId: string,
+    tier: UserTier = "FREE",
+  ): Promise<any> {
+    const cacheKey = `operators:allocations-overview:${operatorId}`;
+    const cached =
+      await this.cacheService.get<OperatorAllocationsOverview>(cacheKey);
+
+    const overview =
+      cached ??
+      (await (async () => {
+        // Verify operator exists
+        const operator = await this.operatorRepository.findById(operatorId);
+        if (!operator) {
+          throw new OperatorNotFoundException(operatorId);
+        }
+
+        // Get comprehensive allocation data
+        const data =
+          await this.operatorAllocationRepository.findAllocationsOverviewData(
+            operatorId,
+          );
+
+        const result = await this.operatorMapper.mapToAllocationsOverview(data);
+        await this.cacheService.set(cacheKey, result, 300); // 5 minutes TTL
+        return result;
+      })());
+
+    if (tier === "FREE") {
+      return {
+        total_allocations: overview.summary?.total_allocation_count,
+        total_magnitude_usd: overview.summary?.total_allocated_usd,
+        utilization_badges: overview.summary?.overall_utilization_pct,
+        detailed_allocations: null,
+        avs_breakdown: null,
+        tier_context: {
+          user_tier: "FREE",
+          gated_fields: ["detailed_allocations", "avs_breakdown"],
+          upgrade_message: "Unlock full allocation data with EigenWatch Pro",
+        },
+      };
     }
 
-    const data =
-      await this.operatorRepository.findAllocationsOverview(operatorId);
-
-    return this.operatorMapper.mapToAllocationsOverview(data);
+    return {
+      ...overview,
+      tier_context: {
+        user_tier: tier,
+        gated_fields: [],
+      },
+    };
   }
 
   async listDetailedAllocations(
@@ -511,32 +858,58 @@ export class OperatorService extends BaseService<any> {
     },
     pagination: { limit: number; offset: number },
     sortBy: string = "magnitude",
-    sortOrder: "asc" | "desc" = "desc"
-  ): Promise<{ allocations: any[]; total: number }> {
+    sortOrder: "asc" | "desc" = "desc",
+  ): Promise<{ allocations: any[]; total: number; summary: any }> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
     }
 
-    const [allocations, total] = await Promise.all([
-      this.operatorRepository.findDetailedAllocations(
+    // Get allocations and commission rates in parallel
+    const [allocations, total, commissionRates] = await Promise.all([
+      this.operatorAllocationRepository.findDetailedAllocations(
         operatorId,
         filters,
         pagination,
         sortBy,
-        sortOrder
+        sortOrder,
       ),
-      this.operatorRepository.countDetailedAllocations(operatorId, filters),
+      this.operatorAllocationRepository.countDetailedAllocations(
+        operatorId,
+        filters,
+      ),
+      this.operatorAVSRepository.findCommissionRates(operatorId),
     ]);
 
-    const mapped = allocations.map((alloc) =>
-      this.operatorMapper.mapToDetailedAllocation(alloc)
+    // Map allocations with commission data
+    const mapped = await Promise.all(
+      allocations.map((alloc) =>
+        this.operatorMapper.mapToDetailedAllocation(alloc, commissionRates),
+      ),
     );
+
+    // Calculate summary
+    const totalAllocatedUsd = mapped.reduce(
+      (sum, a) => sum + parseFloat(a.allocated_usd || "0"),
+      0,
+    );
+    const commissionsWithValues = mapped.filter((a) => a.commission !== null);
+    const avgCommissionBips =
+      commissionsWithValues.length > 0
+        ? commissionsWithValues.reduce(
+            (sum, a) => sum + (a.commission?.effective_bips || 0),
+            0,
+          ) / commissionsWithValues.length
+        : 0;
 
     return {
       allocations: mapped,
       total,
+      summary: {
+        total_allocated_usd: totalAllocatedUsd.toFixed(2),
+        average_commission_bips: Math.round(avgCommissionBips),
+      },
     };
   }
 
@@ -552,24 +925,25 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const analytics = await this.operatorRepository.findRiskAssessment(
-      operatorId,
-      parsedDate
-    );
+    const assessment =
+      await this.operatorAnalyticsRepository.findRiskAssessment(
+        operatorId,
+        parsedDate,
+      );
 
-    if (!analytics) {
+    if (!assessment) {
       throw new Error(
-        `No risk assessment found for operator ${operatorId}${date ? ` on ${date}` : ""}`
+        `No risk assessment found for operator ${operatorId}${date ? ` on ${date}` : ""}`,
       );
     }
 
-    return this.operatorMapper.mapToRiskAssessment(analytics);
+    return this.operatorMapper.mapToRiskAssessment(assessment);
   }
 
   async getConcentrationMetrics(
     operatorId: string,
     concentrationType: string,
-    date?: string
+    date?: string,
   ): Promise<any> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -578,11 +952,12 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const metrics = await this.operatorRepository.findConcentrationMetrics(
-      operatorId,
-      concentrationType,
-      parsedDate
-    );
+    const metrics =
+      await this.operatorAnalyticsRepository.findConcentrationMetrics(
+        operatorId,
+        concentrationType,
+        parsedDate,
+      );
 
     return this.operatorMapper.mapToConcentrationMetrics(metrics);
   }
@@ -590,7 +965,7 @@ export class OperatorService extends BaseService<any> {
   async getVolatilityMetrics(
     operatorId: string,
     metricType: string,
-    date?: string
+    date?: string,
   ): Promise<any> {
     // Verify operator exists
     const operator = await this.operatorRepository.findById(operatorId);
@@ -599,13 +974,33 @@ export class OperatorService extends BaseService<any> {
     }
 
     const parsedDate = date ? new Date(date) : undefined;
-    const metrics = await this.operatorRepository.findVolatilityMetrics(
-      operatorId,
-      metricType,
-      parsedDate
-    );
+    const metrics =
+      await this.operatorAnalyticsRepository.findVolatilityMetrics(
+        operatorId,
+        metricType,
+        parsedDate,
+      );
 
     return this.operatorMapper.mapToVolatilityMetrics(metrics);
+  }
+
+  async getOperatorRiskProfile(
+    operatorId: string,
+    date?: string,
+  ): Promise<any> {
+    // Verify operator exists
+    const operator = await this.operatorRepository.findById(operatorId);
+    if (!operator) {
+      throw new OperatorNotFoundException(operatorId);
+    }
+
+    const parsedDate = date ? new Date(date) : undefined;
+    const profile = await this.operatorAnalyticsRepository.findFullRiskProfile(
+      operatorId,
+      parsedDate,
+    );
+
+    return this.operatorMapper.mapToRiskProfile(profile);
   }
 
   // ============================================================================
@@ -615,8 +1010,15 @@ export class OperatorService extends BaseService<any> {
   async getDailySnapshots(
     operatorId: string,
     dateFrom: string,
-    dateTo: string
+    dateTo: string,
   ): Promise<any> {
+    const cacheKey = `operators:snapshots:${operatorId}:${dateFrom}:${dateTo}`;
+    const cached = await this.cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
       throw new OperatorNotFoundException(operatorId);
@@ -627,20 +1029,24 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findDailySnapshots(
+    const snapshots = await this.operatorAnalyticsRepository.findDailySnapshots(
       operatorId,
       parsedDateFrom,
-      parsedDateTo
+      parsedDateTo,
     );
 
-    return this.operatorMapper.mapToDailySnapshots(snapshots);
+    const result = this.operatorMapper.mapToDailySnapshots(snapshots);
+
+    await this.cacheService.set(cacheKey, result, 3600); // 1 hour TTL
+
+    return result;
   }
 
   async getStrategyTVSHistory(
     operatorId: string,
     strategyId: string,
     dateFrom: string,
-    dateTo: string
+    dateTo: string,
   ): Promise<any> {
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -652,20 +1058,21 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findStrategyTVSHistory(
-      operatorId,
-      strategyId,
-      parsedDateFrom,
-      parsedDateTo
-    );
+    const history =
+      await this.operatorStrategyRepository.findStrategyTVSHistory(
+        operatorId,
+        strategyId,
+        parsedDateFrom,
+        parsedDateTo,
+      );
 
-    if (snapshots.length === 0) {
+    if (history.length === 0) {
       throw new Error(
-        `No history found for strategy ${strategyId} of operator ${operatorId}`
+        `No history found for strategy ${strategyId} of operator ${operatorId}`,
       );
     }
 
-    return this.operatorMapper.mapToStrategyTVSHistory(snapshots, snapshots[0]);
+    return this.operatorMapper.mapToStrategyTVSHistory(history, history[0]);
   }
 
   async getDelegatorSharesHistory(
@@ -675,7 +1082,7 @@ export class OperatorService extends BaseService<any> {
       strategy_id?: string;
       date_from?: string;
       date_to?: string;
-    }
+    },
   ): Promise<any> {
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -692,20 +1099,21 @@ export class OperatorService extends BaseService<any> {
       this.validateDateRange(parsedFilters.date_from, parsedFilters.date_to);
     }
 
-    const snapshots = await this.operatorRepository.findDelegatorSharesHistory(
-      operatorId,
-      stakerId,
-      parsedFilters
-    );
+    const history =
+      await this.operatorDelegatorRepository.findDelegatorSharesHistory(
+        operatorId,
+        stakerId,
+        parsedFilters,
+      );
 
-    return this.operatorMapper.mapToDelegatorSharesHistory(snapshots);
+    return this.operatorMapper.mapToDelegatorSharesHistory(history);
   }
 
   async getAVSRelationshipTimeline(
     operatorId: string,
     avsId: string,
     dateFrom: string,
-    dateTo: string
+    dateTo: string,
   ): Promise<any> {
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -717,14 +1125,15 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findAVSRelationshipTimeline(
-      operatorId,
-      avsId,
-      parsedDateFrom,
-      parsedDateTo
-    );
+    const timeline =
+      await this.operatorAVSRepository.findAVSRelationshipTimeline(
+        operatorId,
+        avsId,
+        parsedDateFrom,
+        parsedDateTo,
+      );
 
-    return this.operatorMapper.mapToAVSRelationshipTimeline(snapshots);
+    return this.operatorMapper.mapToAVSRelationshipTimeline(timeline);
   }
 
   async getAllocationHistory(
@@ -734,7 +1143,7 @@ export class OperatorService extends BaseService<any> {
       strategy_id?: string;
       date_from: string;
       date_to: string;
-    }
+    },
   ): Promise<any> {
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -746,17 +1155,18 @@ export class OperatorService extends BaseService<any> {
 
     this.validateDateRange(parsedDateFrom, parsedDateTo);
 
-    const snapshots = await this.operatorRepository.findAllocationHistory(
-      operatorId,
-      {
-        operator_set_id: filters.operator_set_id,
-        strategy_id: filters.strategy_id,
-        date_from: parsedDateFrom,
-        date_to: parsedDateTo,
-      }
-    );
+    const history =
+      await this.operatorAllocationRepository.findAllocationHistory(
+        operatorId,
+        {
+          operator_set_id: filters.operator_set_id,
+          strategy_id: filters.strategy_id,
+          date_from: parsedDateFrom,
+          date_to: parsedDateTo,
+        },
+      );
 
-    return this.operatorMapper.mapToAllocationHistory(snapshots);
+    return this.operatorMapper.mapToAllocationHistory(history);
   }
 
   async getSlashingIncidents(operatorId: string): Promise<any> {
@@ -766,7 +1176,7 @@ export class OperatorService extends BaseService<any> {
     }
 
     const incidents =
-      await this.operatorRepository.findSlashingIncidents(operatorId);
+      await this.operatorAnalyticsRepository.findSlashingIncidents(operatorId);
 
     return this.operatorMapper.mapToSlashingIncidents(incidents);
   }
@@ -790,15 +1200,16 @@ export class OperatorService extends BaseService<any> {
       throw new Error("Duplicate operator IDs are not allowed");
     }
 
-    const operators = await this.operatorRepository.findOperatorsForComparison(
-      dto.operator_ids
-    );
+    const operators =
+      await this.operatorAnalyticsRepository.findOperatorsForComparison(
+        dto.operator_ids,
+      );
 
     // Verify all operators were found
     if (operators.length !== dto.operator_ids.length) {
       const foundIds = operators.map((op) => op.id);
       const missingIds = dto.operator_ids.filter(
-        (id) => !foundIds.includes(id)
+        (id) => !foundIds.includes(id),
       );
       throw new Error(`Operators not found: ${missingIds.join(", ")}`);
     }
@@ -814,10 +1225,11 @@ export class OperatorService extends BaseService<any> {
 
     const parsedDate = date ? new Date(date) : undefined;
 
-    const data = await this.operatorRepository.calculateOperatorPercentiles(
-      operatorId,
-      parsedDate
-    );
+    const data =
+      await this.operatorAnalyticsRepository.calculateOperatorPercentiles(
+        operatorId,
+        parsedDate,
+      );
 
     if (!data) {
       throw new Error(`No ranking data available for operator ${operatorId}`);
@@ -828,7 +1240,7 @@ export class OperatorService extends BaseService<any> {
 
   async compareOperatorToNetwork(
     operatorId: string,
-    date?: string
+    date?: string,
   ): Promise<any> {
     const operator = await this.operatorRepository.findById(operatorId);
     if (!operator) {
@@ -839,7 +1251,7 @@ export class OperatorService extends BaseService<any> {
 
     const [operatorData, networkAvg] = await Promise.all([
       this.operatorRepository.findById(operatorId),
-      this.operatorRepository.getNetworkAverages(parsedDate),
+      this.operatorAnalyticsRepository.getNetworkAverages(parsedDate),
     ]);
 
     if (!networkAvg) {

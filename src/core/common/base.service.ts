@@ -10,7 +10,7 @@ export abstract class BaseService<T> {
       throw new InvalidDateRangeException("Start date must be before end date");
     }
 
-    const maxRange = 365 * 24 * 60 * 60 * 1000; // 1 year in milliseconds
+    const maxRange = 366 * 24 * 60 * 60 * 1000; // 1 year (allowing for leap years)
     if (to.getTime() - from.getTime() > maxRange) {
       throw new InvalidDateRangeException("Date range cannot exceed 1 year");
     }
@@ -19,7 +19,7 @@ export abstract class BaseService<T> {
   protected validatePagination(limit: number, offset: number): void {
     if (limit < PAGINATION_CONSTANTS.MIN_LIMIT) {
       throw new Error(
-        `Limit must be at least ${PAGINATION_CONSTANTS.MIN_LIMIT}`
+        `Limit must be at least ${PAGINATION_CONSTANTS.MIN_LIMIT}`,
       );
     }
 

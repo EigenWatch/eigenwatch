@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { BaseRepository } from "@/core/common/base.repository";
-import { PrismaService } from "@/core/database/prisma.service";
+import { PrismaAnalyticsService } from "@/core/database/prisma-analytics.service";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class NetworkRepository extends BaseRepository<any> {
-  constructor(protected prisma: PrismaService) {
+  constructor(protected prisma: PrismaAnalyticsService) {
     super(prisma);
   }
 
