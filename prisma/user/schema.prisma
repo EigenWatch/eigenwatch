@@ -28,6 +28,7 @@ model users {
   preferences user_preferences?
   watchlist   user_watchlist[]
   nonces      auth_nonces[]
+  feedback    user_feedback[]
 }
 
 model user_emails {
@@ -126,6 +127,38 @@ model user_watchlist {
 
   @@unique([user_id, entity_type, entity_id])
   @@index([user_id])
+}
+
+model user_feedback {
+  id         String   @id @default(uuid())
+  user_id    String?
+  type       FeedbackType
+  sentiment  FeedbackSentiment?
+  category   String?
+  message    String?
+  email      String?
+  page_url   String?
+  section_id String?
+  metadata   Json?
+  created_at DateTime @default(now())
+
+  user users? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([type])
+  @@index([created_at])
+}
+
+enum FeedbackType {
+  GENERAL
+  INLINE
+  PAYWALL
+  FEATURE_REQUEST
+}
+
+enum FeedbackSentiment {
+  POSITIVE
+  NEGATIVE
 }
 
 enum UserTier {

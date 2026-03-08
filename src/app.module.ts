@@ -25,6 +25,7 @@ import { NetworkModule } from "./modules/network/network.module";
 import { StrategiesModule } from "./modules/strategies/strategies.module";
 import { UserModule } from "./modules/user/user.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
+import { FeedbackModule } from "./modules/feedback/feedback.module";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { PaymentsModule } from "./modules/payments/payments.module";
     HealthModule,
     UserModule,
     PaymentsModule,
+    FeedbackModule,
   ],
   providers: [
     {
