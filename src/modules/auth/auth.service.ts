@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpStatus } from "@nestjs/common";
+import { Injectable, Logger, HttpStatus, Inject, forwardRef } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "crypto";
 import { SignatureVerificationService } from "./signature-verification.service";
@@ -14,6 +14,7 @@ import {
   JwtTokenPair,
   UserTier,
 } from "src/shared/types/auth.types";
+import { BetaService } from "../beta/beta.service";
 
 @Injectable()
 export class AuthService {
@@ -26,6 +27,8 @@ export class AuthService {
     private sessionRepository: SessionRepository,
     private nonceRepository: NonceRepository,
     private config: AppConfigService,
+    @Inject(forwardRef(() => BetaService))
+    private betaService: BetaService,
   ) {}
 
   async generateChallenge(address: string): Promise<{
@@ -108,42 +111,53 @@ export class AuthService {
     // 6. Update last login
     await this.userRepository.updateLastLogin(user.id);
 
+    // 6b. Check beta perks for verified emails (catches users added to beta after registration)
+    const verifiedEmails = user.emails?.filter((e) => e.is_verified) ?? [];
+    for (const email of verifiedEmails) {
+      await this.betaService.checkAndActivateBetaPerks(user.id, email.email);
+    }
+
+    // Re-fetch user in case beta check upgraded their tier
+    const freshUser = verifiedEmails.length > 0
+      ? await this.userRepository.findById(user.id) ?? user
+      : user;
+
     // 7. Issue tokens
     const tokens = await this.issueTokenPair(
-      user.id,
-      user.wallet_address,
-      user.tier as UserTier,
+      freshUser.id,
+      freshUser.wallet_address,
+      freshUser.tier as UserTier,
       ipAddress,
       deviceInfo,
     );
 
-    // 8. Build auth user response
+    // 8. Get unseen beta perks for the response
+    const unseenBetaPerks = await this.betaService.getUnseenPerks(freshUser.id);
+    const isBetaMember = await this.betaService.isBetaMember(freshUser.id);
+
+    // 9. Build auth user response
     const authUser: AuthUser = {
-      id: user.id,
-      wallet_address: user.wallet_address,
-      tier: user.tier as UserTier,
-      display_name: user.display_name,
-      email_verified: user.emails?.some((e) => e.is_verified) ?? false,
-      emails: user.emails?.map((e) => ({
+      id: freshUser.id,
+      wallet_address: freshUser.wallet_address,
+      tier: freshUser.tier as UserTier,
+      display_name: freshUser.display_name,
+      email_verified: freshUser.emails?.some((e) => e.is_verified) ?? false,
+      emails: freshUser.emails?.map((e) => ({
         id: e.id,
         email: e.email,
         is_verified: e.is_verified,
         is_primary: e.is_primary,
         created_at: e.created_at,
       })),
-      created_at: user.created_at.toISOString(),
-      tier_expires_at: user.tier_expires_at,
+      created_at: freshUser.created_at.toISOString(),
+      tier_expires_at: freshUser.tier_expires_at,
+      beta_member: isBetaMember,
+      unseen_beta_perks: unseenBetaPerks,
     };
 
     this.logger.log(
-      `User authenticated: ${user.wallet_address} (${isNew ? "new" : "returning"})`,
+      `User authenticated: ${freshUser.wallet_address} (${isNew ? "new" : "returning"})`,
     );
-
-    console.log(`[AuthService] verifyAndAuthenticate returning user:`, {
-      id: authUser.id,
-      display_name: authUser.display_name,
-      created_at: authUser.created_at,
-    });
 
     return {
       tokens,
@@ -183,6 +197,9 @@ export class AuthService {
       deviceInfo,
     );
 
+    const unseenBetaPerks = await this.betaService.getUnseenPerks(user.id);
+    const isBetaMember = await this.betaService.isBetaMember(user.id);
+
     const authUser: AuthUser = {
       id: user.id,
       wallet_address: user.wallet_address,
@@ -199,13 +216,9 @@ export class AuthService {
       created_at: user.created_at.toISOString(),
       tier_expires_at: user.tier_expires_at,
       preferences: user.preferences,
+      beta_member: isBetaMember,
+      unseen_beta_perks: unseenBetaPerks,
     };
-
-    console.log(`[AuthService] refreshTokens returning user:`, {
-      id: authUser.id,
-      display_name: authUser.display_name,
-      created_at: authUser.created_at,
-    });
 
     return { tokens, user: authUser };
   }

@@ -68,6 +68,14 @@ export const env = cleanEnv(process.env, {
   FLUTTERWAVE_PLAN_ID: str({ default: "" }),
   FLUTTERWAVE_REDIRECT_URL: str({ default: "http://localhost:3000/settings" }),
   FLUTTERWAVE_WEBHOOK_HASH: str({ default: "" }),
+
+  // Chainrails
+  CHAINRAILS_API_KEY: str({ default: "" }),
+  CHAINRAILS_WEBHOOK_SECRET: str({ default: "" }),
+  CHAINRAILS_ENVIRONMENT: str({
+    choices: ["live", "test"],
+    default: "test",
+  }),
 });
 
 export type Environment = typeof env;

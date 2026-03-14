@@ -29,6 +29,7 @@ model users {
   watchlist   user_watchlist[]
   nonces      auth_nonces[]
   feedback    user_feedback[]
+  beta_perks  user_beta_perks[]
 }
 
 model user_emails {
@@ -147,6 +148,42 @@ model user_feedback {
   @@index([user_id])
   @@index([type])
   @@index([created_at])
+}
+
+model beta_members {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  added_at  DateTime @default(now())
+  notes     String?
+  is_active Boolean  @default(true)
+
+  @@index([email])
+}
+
+model beta_perks {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String
+  is_active   Boolean  @default(true)
+  config      Json?
+  created_at  DateTime @default(now())
+
+  user_perks user_beta_perks[]
+}
+
+model user_beta_perks {
+  id                String   @id @default(uuid())
+  user_id           String
+  perk_id           String
+  activated_at      DateTime @default(now())
+  notification_seen Boolean  @default(false)
+  metadata          Json?
+
+  user users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  perk beta_perks @relation(fields: [perk_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, perk_id])
+  @@index([user_id])
 }
 
 enum FeedbackType {

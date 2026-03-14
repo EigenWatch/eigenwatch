@@ -108,6 +108,11 @@ export class AppConfigService {
         redirectUrl: env.FLUTTERWAVE_REDIRECT_URL,
         webhookHash: env.FLUTTERWAVE_WEBHOOK_HASH,
       },
+      chainrails: {
+        apiKey: env.CHAINRAILS_API_KEY,
+        webhookSecret: env.CHAINRAILS_WEBHOOK_SECRET,
+        environment: env.CHAINRAILS_ENVIRONMENT,
+      },
     };
   }
 }

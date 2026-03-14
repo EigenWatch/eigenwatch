@@ -1,10 +1,11 @@
-import { Injectable, Logger, HttpStatus } from "@nestjs/common";
+import { Injectable, Logger, HttpStatus, Inject, forwardRef } from "@nestjs/common";
 import { randomInt } from "crypto";
 import { EmailRepository } from "./repositories/email.repository";
 import { EmailTransportService } from "./email-transport.service";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { verificationCodeEmail } from "./templates/email-templates";
+import { BetaService } from "../beta/beta.service";
 
 @Injectable()
 export class EmailService {
@@ -13,6 +14,8 @@ export class EmailService {
   constructor(
     private readonly emailRepository: EmailRepository,
     private readonly emailTransport: EmailTransportService,
+    @Inject(forwardRef(() => BetaService))
+    private readonly betaService: BetaService,
   ) {}
 
   /**
@@ -84,6 +87,9 @@ export class EmailService {
     await this.emailRepository.markVerified(userId, email);
 
     this.logger.log(`Email verified: ${email} for user ${userId}`);
+
+    // Check and activate beta perks for this email
+    await this.betaService.checkAndActivateBetaPerks(userId, email);
 
     return { message: "Email verified successfully" };
   }
