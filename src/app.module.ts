@@ -27,6 +27,7 @@ import { UserModule } from "./modules/user/user.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { FeedbackModule } from "./modules/feedback/feedback.module";
 import { BetaModule } from "./modules/beta/beta.module";
+import { AdminModule } from "./modules/admin/admin.module";
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { BetaModule } from "./modules/beta/beta.module";
     PaymentsModule,
     FeedbackModule,
     BetaModule,
+    AdminModule,
   ],
   providers: [
     {

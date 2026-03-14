@@ -30,6 +30,7 @@ model users {
   nonces      auth_nonces[]
   feedback    user_feedback[]
   beta_perks  user_beta_perks[]
+  payments    payment_transactions[]
 }
 
 model user_emails {
@@ -184,6 +185,53 @@ model user_beta_perks {
 
   @@unique([user_id, perk_id])
   @@index([user_id])
+}
+
+model payment_transactions {
+  id             String        @id @default(uuid())
+  user_id        String
+  amount_usd     Decimal
+  payment_method PaymentMethod
+  provider_ref   String? // tx hash, chainrails intent id, etc.
+  status         PaymentStatus @default(PENDING)
+  tier_granted   UserTier      @default(PRO)
+  duration_days  Int           @default(30)
+  metadata       Json? // chain, token, extra context
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  user           users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  status_history payment_status_history[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model payment_status_history {
+  id             String        @id @default(uuid())
+  transaction_id String
+  from_status    PaymentStatus?
+  to_status      PaymentStatus
+  timestamp      DateTime      @default(now())
+  metadata       Json? // reason, error details, etc.
+
+  transaction payment_transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+
+  @@index([transaction_id])
+}
+
+enum PaymentMethod {
+  CRYPTO_DIRECT
+  CHAINRAILS
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMING
+  CONFIRMED
+  FAILED
+  EXPIRED
 }
 
 enum FeedbackType {

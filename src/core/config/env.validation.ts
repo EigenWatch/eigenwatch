@@ -69,6 +69,10 @@ export const env = cleanEnv(process.env, {
   FLUTTERWAVE_REDIRECT_URL: str({ default: "http://localhost:3000/settings" }),
   FLUTTERWAVE_WEBHOOK_HASH: str({ default: "" }),
 
+  // Admin
+  ADMIN_EMAIL: str({ default: "" }),
+  ADMIN_PASSWORD: str({ default: "" }),
+
   // Chainrails
   CHAINRAILS_API_KEY: str({ default: "" }),
   CHAINRAILS_WEBHOOK_SECRET: str({ default: "" }),

@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { createHmac } from "crypto";
 import { AppConfigService } from "src/core/config/config.service";
 import { UserRepository } from "../auth/repositories/user.repository";
+import { PaymentRepository } from "./payment.repository";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { ChainrailsIntentDto } from "./dto/chainrails-intent.dto";
@@ -16,6 +17,7 @@ export class ChainrailsService {
   constructor(
     private config: AppConfigService,
     private userRepository: UserRepository,
+    private paymentRepository: PaymentRepository,
   ) {}
 
   async getQuotes(
@@ -106,6 +108,22 @@ export class ChainrailsService {
         );
       }
 
+      // Track the payment transaction
+      const amountUsd = parseFloat(payload.amount || this.config.payments.proPriceUsdc);
+      await this.paymentRepository.createTransaction({
+        user_id: userId,
+        amount_usd: amountUsd,
+        payment_method: "CHAINRAILS",
+        provider_ref: data.intent_id || data.intent_address,
+        status: "PENDING",
+        metadata: {
+          source_chain: payload.sourceChain,
+          destination_chain: payload.destinationChain,
+          token_in: payload.tokenIn,
+          intent_address: data.intent_address,
+        },
+      });
+
       this.logger.log(
         `Chainrails intent created for user ${userId}: ${data.intent_address}`,
       );
@@ -144,12 +162,21 @@ export class ChainrailsService {
     this.logger.log(`Received Chainrails webhook: ${payload.type}`);
 
     // 2. Handle events
+    const intentId = payload.data?.intent_id;
+    const intentAddress = payload.data?.intent_address;
+    const providerRef = intentId || intentAddress;
+
+    // Look up existing transaction by provider ref
+    const existingTx = providerRef
+      ? await this.paymentRepository.findByProviderRef(providerRef)
+      : null;
+
     switch (payload.type) {
       case "intent.completed": {
         const userId = payload.data?.metadata?.userId;
         if (!userId) {
           this.logger.error(
-            `No userId in webhook metadata for intent ${payload.data?.intent_id}`,
+            `No userId in webhook metadata for intent ${intentId}`,
           );
           return { status: "error", message: "No userId in metadata" };
         }
@@ -158,27 +185,52 @@ export class ChainrailsService {
         expiresAt.setDate(expiresAt.getDate() + 30);
         await this.userRepository.updateTier(userId, "PRO", expiresAt);
 
+        if (existingTx) {
+          await this.paymentRepository.updateTransactionStatus(
+            existingTx.id, existingTx.status as any, "CONFIRMED",
+            { reason: "Intent completed via webhook" },
+          );
+        }
+
         this.logger.log(
-          `User ${userId} upgraded to PRO via Chainrails (intent: ${payload.data?.intent_id})`,
+          `User ${userId} upgraded to PRO via Chainrails (intent: ${intentId})`,
         );
         return { status: "success", message: "User upgraded" };
       }
 
       case "intent.funded":
+        if (existingTx) {
+          await this.paymentRepository.updateTransactionStatus(
+            existingTx.id, existingTx.status as any, "CONFIRMING",
+            { reason: "Intent funded, bridge in progress" },
+          );
+        }
         this.logger.log(
-          `Intent funded: ${payload.data?.intent_id} (bridge in progress)`,
+          `Intent funded: ${intentId} (bridge in progress)`,
         );
         return { status: "acknowledged", message: "Intent funded" };
 
       case "intent.expired":
+        if (existingTx) {
+          await this.paymentRepository.updateTransactionStatus(
+            existingTx.id, existingTx.status as any, "EXPIRED",
+            { reason: "Intent expired" },
+          );
+        }
         this.logger.log(
-          `Intent expired: ${payload.data?.intent_id}`,
+          `Intent expired: ${intentId}`,
         );
         return { status: "acknowledged", message: "Intent expired" };
 
       case "intent.refunded":
+        if (existingTx) {
+          await this.paymentRepository.updateTransactionStatus(
+            existingTx.id, existingTx.status as any, "FAILED",
+            { reason: "Intent refunded" },
+          );
+        }
         this.logger.log(
-          `Intent refunded: ${payload.data?.intent_id}`,
+          `Intent refunded: ${intentId}`,
         );
         return { status: "acknowledged", message: "Intent refunded" };
 

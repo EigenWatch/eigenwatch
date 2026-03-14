@@ -3,6 +3,7 @@ import { BetaRepository } from "./beta.repository";
 import { UserRepository } from "../auth/repositories/user.repository";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
+import { defaultBetaPerks } from "./beta-perks.config";
 
 @Injectable()
 export class BetaService {
@@ -144,6 +145,21 @@ export class BetaService {
     return this.betaRepository.listPerks();
   }
 
+  async seedPerks() {
+    const results = { added: 0, skipped: 0 };
+    for (const perk of defaultBetaPerks) {
+      const existing = await this.betaRepository.findPerkByKey(perk.key);
+      if (existing) {
+        results.skipped++;
+      } else {
+        await this.betaRepository.upsertPerk(perk);
+        results.added++;
+        this.logger.log(`Seeded new beta perk: ${perk.key}`);
+      }
+    }
+    return results;
+  }
+
   async updatePerk(
     key: string,
     data: { is_active?: boolean; config?: any; description?: string },
@@ -164,7 +180,9 @@ export class BetaService {
    */
   async getBetaDiscount(userId: string): Promise<number | null> {
     const userPerks = await this.betaRepository.getUserPerks(userId);
-    const discountPerk = userPerks.find((up) => up.perk.key === "discounted_pro");
+    const discountPerk = userPerks.find(
+      (up) => up.perk.key === "discounted_pro",
+    );
     if (!discountPerk) return null;
 
     const config = discountPerk.perk.config as any;

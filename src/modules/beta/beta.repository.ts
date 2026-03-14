@@ -42,13 +42,29 @@ export class BetaRepository {
     });
   }
 
+  async upsertPerk(data: {
+    key: string;
+    description: string;
+    is_active: boolean;
+    config: any;
+  }) {
+    return this.prisma.beta_perks.upsert({
+      where: { key: data.key },
+      update: {}, // Only insert if missing, don't overwrite existing
+      create: data,
+    });
+  }
+
   async listPerks() {
     return this.prisma.beta_perks.findMany({
       orderBy: { created_at: "asc" },
     });
   }
 
-  async updatePerk(key: string, data: { is_active?: boolean; config?: any; description?: string }) {
+  async updatePerk(
+    key: string,
+    data: { is_active?: boolean; config?: any; description?: string },
+  ) {
     return this.prisma.beta_perks.update({
       where: { key },
       data,
@@ -69,11 +85,7 @@ export class BetaRepository {
     });
   }
 
-  async activatePerkForUser(
-    userId: string,
-    perkId: string,
-    metadata?: any,
-  ) {
+  async activatePerkForUser(userId: string, perkId: string, metadata?: any) {
     return this.prisma.user_beta_perks.create({
       data: {
         user_id: userId,

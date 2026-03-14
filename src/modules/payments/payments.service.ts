@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { ethers } from "ethers";
 import { AppConfigService } from "src/core/config/config.service";
 import { UserRepository } from "../auth/repositories/user.repository";
+import { PaymentRepository } from "./payment.repository";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 
@@ -13,6 +14,7 @@ export class PaymentsService {
   constructor(
     private config: AppConfigService,
     private userRepository: UserRepository,
+    private paymentRepository: PaymentRepository,
   ) {
     const configs = this.config.payments;
     const providers: any[] = [];
@@ -71,9 +73,25 @@ export class PaymentsService {
       await this.ensureVerifiedEmail(userId);
       this.logger.log(`Verifying payment for user ${userId}, tx: ${txHash}`);
 
+      const amountUsd = parseFloat(this.config.payments.proPriceUsdc);
+
+      // Create transaction record
+      const transaction = await this.paymentRepository.createTransaction({
+        user_id: userId,
+        amount_usd: amountUsd,
+        payment_method: "CRYPTO_DIRECT",
+        provider_ref: txHash,
+        status: "PENDING",
+        metadata: { chain: "base", token: "USDC/USDT" },
+      });
+
       // 1. Fetch transaction receipt
       const receipt = await this.provider.getTransactionReceipt(txHash);
       if (!receipt) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "PENDING", "FAILED",
+          { reason: "Transaction not found or not yet confirmed" },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           "Transaction not found or not yet confirmed.",
@@ -81,7 +99,17 @@ export class PaymentsService {
         );
       }
 
+      // Mark as confirming
+      await this.paymentRepository.updateTransactionStatus(
+        transaction.id, "PENDING", "CONFIRMING",
+        { reason: "Receipt found, verifying transfer details" },
+      );
+
       if (receipt.status !== 1) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "CONFIRMING", "FAILED",
+          { reason: "Transaction failed on-chain" },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           "Transaction failed on-chain.",
@@ -92,6 +120,10 @@ export class PaymentsService {
       // 2. Fetch transaction data to check "to", "value", and "contract"
       const tx = await this.provider.getTransaction(txHash);
       if (!tx) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "CONFIRMING", "FAILED",
+          { reason: "Could not fetch transaction details" },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           "Could not fetch transaction details.",
@@ -110,6 +142,10 @@ export class PaymentsService {
       );
 
       if (!log) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "CONFIRMING", "FAILED",
+          { reason: "No valid stablecoin transfer found" },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           "No valid stablecoin transfer found in this transaction.",
@@ -126,6 +162,10 @@ export class PaymentsService {
       const adminAddress =
         this.config.payments.adminWalletAddress.toLowerCase();
       if (to.toLowerCase() !== adminAddress) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "CONFIRMING", "FAILED",
+          { reason: `Recipient mismatch. Expected ${adminAddress}` },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           `Recipient address mismatch. Expected ${adminAddress}`,
@@ -139,6 +179,10 @@ export class PaymentsService {
         6,
       );
       if (value < expectedAmount) {
+        await this.paymentRepository.updateTransactionStatus(
+          transaction.id, "CONFIRMING", "FAILED",
+          { reason: `Insufficient amount. Expected ${this.config.payments.proPriceUsdc} USDC` },
+        );
         throw new AppException(
           ERROR_CODES.INVALID_PAYMENT,
           `Insufficient amount. Expected at least ${this.config.payments.proPriceUsdc} USDC`,
@@ -150,6 +194,12 @@ export class PaymentsService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
       await this.userRepository.updateTier(userId, "PRO", expiresAt);
+
+      // Mark payment as confirmed
+      await this.paymentRepository.updateTransactionStatus(
+        transaction.id, "CONFIRMING", "CONFIRMED",
+        { reason: "Payment verified and tier upgraded" },
+      );
 
       this.logger.log(`User ${userId} upgraded to PRO via tx ${txHash}`);
 

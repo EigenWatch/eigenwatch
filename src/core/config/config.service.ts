@@ -87,6 +87,13 @@ export class AppConfigService {
     };
   }
 
+  get admin() {
+    return {
+      email: env.ADMIN_EMAIL,
+      password: env.ADMIN_PASSWORD,
+    };
+  }
+
   get payments() {
     return {
       baseRpcUrl: env.BASE_RPC_URL,

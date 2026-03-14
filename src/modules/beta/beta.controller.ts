@@ -2,9 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
-  Body,
   Param,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
@@ -19,8 +16,6 @@ import { BetaService } from "./beta.service";
 @RequireAuth()
 export class BetaController {
   constructor(private readonly betaService: BetaService) {}
-
-  // --- User Endpoints ---
 
   @Get("perks/unseen")
   @ApiOperation({ summary: "Get unseen beta perk notifications" })
@@ -41,42 +36,5 @@ export class BetaController {
   @ApiOperation({ summary: "Get current user beta status and active perks" })
   async getBetaStatus(@CurrentUser() user: AuthUser) {
     return this.betaService.getBetaStatus(user.id);
-  }
-
-  // --- Admin Endpoints ---
-
-  @Post("admin/members")
-  @ApiOperation({ summary: "Add an email to the beta program" })
-  async addBetaMember(@Body() body: { email: string; notes?: string }) {
-    return this.betaService.addBetaMember(body.email, body.notes);
-  }
-
-  @Delete("admin/members/:email")
-  @ApiOperation({ summary: "Remove an email from the beta program" })
-  async removeBetaMember(@Param("email") email: string) {
-    return this.betaService.removeBetaMember(email);
-  }
-
-  @Get("admin/members")
-  @ApiOperation({ summary: "List all beta members" })
-  async listBetaMembers() {
-    return this.betaService.listBetaMembers();
-  }
-
-  @Get("admin/perks")
-  @ApiOperation({ summary: "List all beta perks with config" })
-  async listPerks() {
-    return this.betaService.listPerks();
-  }
-
-  @Put("admin/perks/:key")
-  @ApiOperation({
-    summary: "Update a beta perk config (e.g. discount %, enable/disable)",
-  })
-  async updatePerk(
-    @Param("key") key: string,
-    @Body() body: { is_active?: boolean; config?: any; description?: string },
-  ) {
-    return this.betaService.updatePerk(key, body);
   }
 }
