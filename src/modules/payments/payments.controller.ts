@@ -2,6 +2,7 @@ import { Controller, Post, Body, Headers, Req } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { RequireAuth } from "src/core/decorators/require-auth.decorator";
 import { Public } from "src/core/decorators/public.decorator";
+import { SkipApiKey } from "src/core/decorators/skip-api-key.decorator";
 import { CurrentUser } from "src/core/decorators/current-user.decorator";
 import { AuthUser } from "src/shared/types/auth.types";
 import { PaymentsService } from "./payments.service";
@@ -78,6 +79,7 @@ export class PaymentsController {
   }
 
   @Public()
+  @SkipApiKey()
   @Post("flutterwave/webhook")
   @ApiOperation({ summary: "Handle Flutterwave webhooks" })
   async handleFlutterwaveWebhook(
@@ -93,9 +95,7 @@ export class PaymentsController {
 
   @Post("chainrails/quote")
   @ApiOperation({ summary: "Get cross-chain payment quotes from Chainrails" })
-  async getChainrailsQuotes(
-    @Body() body: ChainrailsQuoteDto,
-  ) {
+  async getChainrailsQuotes(@Body() body: ChainrailsQuoteDto) {
     return this.chainrailsService.getQuotes(
       body.amount,
       body.destinationChain,
@@ -113,6 +113,8 @@ export class PaymentsController {
   }
 
   @Public()
+  @SkipApiKey()
+  @RequireAuth(false)
   @Post("chainrails/webhook")
   @ApiOperation({ summary: "Handle Chainrails webhooks" })
   async handleChainrailsWebhook(

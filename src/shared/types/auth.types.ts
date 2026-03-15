@@ -36,6 +36,7 @@ export interface AuthUser {
   created_at?: string;
   tier_expires_at?: Date | null;
   beta_member?: boolean;
+  beta_discount?: number | null;
   unseen_beta_perks?: UnseenBetaPerk[];
 }
 

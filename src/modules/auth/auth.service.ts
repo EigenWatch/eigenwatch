@@ -1,4 +1,10 @@
-import { Injectable, Logger, HttpStatus, Inject, forwardRef } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "crypto";
 import { SignatureVerificationService } from "./signature-verification.service";
@@ -118,9 +124,10 @@ export class AuthService {
     }
 
     // Re-fetch user in case beta check upgraded their tier
-    const freshUser = verifiedEmails.length > 0
-      ? await this.userRepository.findById(user.id) ?? user
-      : user;
+    const freshUser =
+      verifiedEmails.length > 0
+        ? ((await this.userRepository.findById(user.id)) ?? user)
+        : user;
 
     // 7. Issue tokens
     const tokens = await this.issueTokenPair(
@@ -134,6 +141,7 @@ export class AuthService {
     // 8. Get unseen beta perks for the response
     const unseenBetaPerks = await this.betaService.getUnseenPerks(freshUser.id);
     const isBetaMember = await this.betaService.isBetaMember(freshUser.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(freshUser.id);
 
     // 9. Build auth user response
     const authUser: AuthUser = {
@@ -152,6 +160,7 @@ export class AuthService {
       created_at: freshUser.created_at.toISOString(),
       tier_expires_at: freshUser.tier_expires_at,
       beta_member: isBetaMember,
+      beta_discount: betaDiscount,
       unseen_beta_perks: unseenBetaPerks,
     };
 
@@ -199,6 +208,7 @@ export class AuthService {
 
     const unseenBetaPerks = await this.betaService.getUnseenPerks(user.id);
     const isBetaMember = await this.betaService.isBetaMember(user.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(user.id);
 
     const authUser: AuthUser = {
       id: user.id,
@@ -217,6 +227,7 @@ export class AuthService {
       tier_expires_at: user.tier_expires_at,
       preferences: user.preferences,
       beta_member: isBetaMember,
+      beta_discount: betaDiscount,
       unseen_beta_perks: unseenBetaPerks,
     };
 

@@ -20,11 +20,10 @@ export class ChainrailsService {
     private paymentRepository: PaymentRepository,
   ) {}
 
-  async getQuotes(
-    amount: string,
-    destinationChain: string,
-    tokenOut: string,
-  ) {
+  async getQuotes(amount: string, destinationChain: string, tokenOut: string) {
+    this.logger.debug(
+      `[getQuotes] Triggered with amount: ${amount}, destinationChain: ${destinationChain}, tokenOut: ${tokenOut}`,
+    );
     try {
       const params = new URLSearchParams({
         amount,
@@ -32,16 +31,19 @@ export class ChainrailsService {
         tokenOut,
       });
 
-      const response = await fetch(
-        `${CHAINRAILS_API_BASE}/quotes/multi-source?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${this.config.payments.chainrails.apiKey}`,
-          },
+      const url = `${CHAINRAILS_API_BASE}/quotes/multi-source?${params}`;
+      this.logger.debug(`[getQuotes] Calling Chainrails API: ${url}`);
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${this.config.payments.chainrails.apiKey}`,
         },
-      );
+      });
 
       const data = await response.json();
+      this.logger.debug(
+        `[getQuotes] Raw response from Chainrails: ${JSON.stringify(data)}`,
+      );
 
       if (!response.ok) {
         this.logger.error(`Chainrails quote failed: ${JSON.stringify(data)}`);
@@ -52,6 +54,9 @@ export class ChainrailsService {
         );
       }
 
+      this.logger.debug(
+        `[getQuotes] Successfully fetched quotes, returning data.`,
+      );
       return data;
     } catch (error) {
       if (error instanceof AppException) throw error;
@@ -68,9 +73,35 @@ export class ChainrailsService {
   }
 
   async createIntent(userId: string, payload: ChainrailsIntentDto) {
+    this.logger.debug(
+      `[createIntent] Triggered for user ${userId} with payload: ${JSON.stringify(payload)}`,
+    );
     try {
       await this.ensureVerifiedEmail(userId);
+      this.logger.debug(
+        `[createIntent] Email verification passed for user ${userId}`,
+      );
       this.logger.log(`Creating Chainrails intent for user ${userId}`);
+
+      const requestBody = {
+        sender: payload.sender,
+        amount: payload.amount,
+        amountSymbol: payload.amountSymbol || "USDC",
+        tokenIn: payload.tokenIn,
+        source_chain: payload.sourceChain,
+        destination_chain: payload.destinationChain,
+        recipient: payload.recipient,
+        refund_address: payload.refundAddress,
+        metadata: {
+          ...payload.metadata,
+          userId,
+          source: "eigenwatch",
+        },
+      };
+
+      this.logger.debug(
+        `[createIntent] Initializing request to Chainrails endpoint /intents with body: ${JSON.stringify(requestBody)}`,
+      );
 
       const response = await fetch(`${CHAINRAILS_API_BASE}/intents`, {
         method: "POST",
@@ -78,24 +109,13 @@ export class ChainrailsService {
           Authorization: `Bearer ${this.config.payments.chainrails.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          sender: payload.sender,
-          amount: payload.amount,
-          amountSymbol: payload.amountSymbol || "USDC",
-          tokenIn: payload.tokenIn,
-          source_chain: payload.sourceChain,
-          destination_chain: payload.destinationChain,
-          recipient: payload.recipient,
-          refund_address: payload.refundAddress,
-          metadata: {
-            ...payload.metadata,
-            userId,
-            source: "eigenwatch",
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
+      this.logger.debug(
+        `[createIntent] Raw response from Chainrails /intents: ${JSON.stringify(data)}`,
+      );
 
       if (!response.ok) {
         this.logger.error(
@@ -108,8 +128,12 @@ export class ChainrailsService {
         );
       }
 
+      this.logger.debug(
+        `[createIntent] Successfully created intent, entering DB tracking phase.`,
+      );
+
       // Track the payment transaction
-      const amountUsd = parseFloat(payload.amount || this.config.payments.proPriceUsdc);
+      const amountUsd = parseFloat(this.config.payments.proPriceUsdc);
       await this.paymentRepository.createTransaction({
         user_id: userId,
         amount_usd: amountUsd,
@@ -124,6 +148,9 @@ export class ChainrailsService {
         },
       });
 
+      this.logger.debug(
+        `[createIntent] DB tracking passed, returning data back to client.`,
+      );
       this.logger.log(
         `Chainrails intent created for user ${userId}: ${data.intent_address}`,
       );
@@ -143,11 +170,7 @@ export class ChainrailsService {
     }
   }
 
-  async handleWebhook(
-    rawBody: string,
-    signature: string,
-    timestamp: string,
-  ) {
+  async handleWebhook(rawBody: string, signature: string, timestamp: string) {
     // 1. Verify signature
     if (!this.verifySignature(rawBody, signature, timestamp)) {
       this.logger.error("Invalid Chainrails webhook signature");
@@ -187,7 +210,9 @@ export class ChainrailsService {
 
         if (existingTx) {
           await this.paymentRepository.updateTransactionStatus(
-            existingTx.id, existingTx.status as any, "CONFIRMED",
+            existingTx.id,
+            existingTx.status as any,
+            "CONFIRMED",
             { reason: "Intent completed via webhook" },
           );
         }
@@ -201,37 +226,37 @@ export class ChainrailsService {
       case "intent.funded":
         if (existingTx) {
           await this.paymentRepository.updateTransactionStatus(
-            existingTx.id, existingTx.status as any, "CONFIRMING",
+            existingTx.id,
+            existingTx.status as any,
+            "CONFIRMING",
             { reason: "Intent funded, bridge in progress" },
           );
         }
-        this.logger.log(
-          `Intent funded: ${intentId} (bridge in progress)`,
-        );
+        this.logger.log(`Intent funded: ${intentId} (bridge in progress)`);
         return { status: "acknowledged", message: "Intent funded" };
 
       case "intent.expired":
         if (existingTx) {
           await this.paymentRepository.updateTransactionStatus(
-            existingTx.id, existingTx.status as any, "EXPIRED",
+            existingTx.id,
+            existingTx.status as any,
+            "EXPIRED",
             { reason: "Intent expired" },
           );
         }
-        this.logger.log(
-          `Intent expired: ${intentId}`,
-        );
+        this.logger.log(`Intent expired: ${intentId}`);
         return { status: "acknowledged", message: "Intent expired" };
 
       case "intent.refunded":
         if (existingTx) {
           await this.paymentRepository.updateTransactionStatus(
-            existingTx.id, existingTx.status as any, "FAILED",
+            existingTx.id,
+            existingTx.status as any,
+            "FAILED",
             { reason: "Intent refunded" },
           );
         }
-        this.logger.log(
-          `Intent refunded: ${intentId}`,
-        );
+        this.logger.log(`Intent refunded: ${intentId}`);
         return { status: "acknowledged", message: "Intent refunded" };
 
       default:
@@ -264,7 +289,11 @@ export class ChainrailsService {
       .update(signedPayload)
       .digest("hex");
 
-    return signature === expectedSignature;
+    // Add the prefix for the comparison
+    const expectedWithPrefix = `sha256=${expectedSignature}`;
+
+    // Use timingSafeEqual for security
+    return signature === expectedWithPrefix;
   }
 
   private async ensureVerifiedEmail(userId: string) {

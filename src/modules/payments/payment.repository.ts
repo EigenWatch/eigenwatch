@@ -62,7 +62,7 @@ export class PaymentRepository {
 
   async findByProviderRef(providerRef: string) {
     return this.prisma.payment_transactions.findFirst({
-      where: { provider_ref: providerRef },
+      where: { provider_ref: String(providerRef) },
       include: { status_history: true },
     });
   }

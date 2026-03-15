@@ -289,6 +289,75 @@
         ]
       }
     },
+    "/api/v1/beta/perks/unseen": {
+      "get": {
+        "operationId": "BetaController_getUnseenPerks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get unseen beta perk notifications",
+        "tags": [
+          "Beta"
+        ]
+      }
+    },
+    "/api/v1/beta/perks/{perkId}/seen": {
+      "post": {
+        "operationId": "BetaController_markPerkSeen",
+        "parameters": [
+          {
+            "name": "perkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a beta perk notification as seen",
+        "tags": [
+          "Beta"
+        ]
+      }
+    },
+    "/api/v1/beta/status": {
+      "get": {
+        "operationId": "BetaController_getBetaStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user beta status and active perks",
+        "tags": [
+          "Beta"
+        ]
+      }
+    },
     "/api/v1/operators": {
       "get": {
         "description": "Primary endpoint for the operators listing/discovery page with flexible filtering and sorting",
@@ -3323,6 +3392,103 @@
         ]
       }
     },
+    "/api/v1/payments/chainrails/quote": {
+      "post": {
+        "operationId": "PaymentsController_getChainrailsQuotes",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainrailsQuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get cross-chain payment quotes from Chainrails",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/chainrails/create-intent": {
+      "post": {
+        "operationId": "PaymentsController_createChainrailsIntent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainrailsIntentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a Chainrails cross-chain payment intent",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/chainrails/webhook": {
+      "post": {
+        "operationId": "PaymentsController_handleChainrailsWebhook",
+        "parameters": [
+          {
+            "name": "x-chainrails-signature",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-chainrails-timestamp",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Handle Chainrails webhooks",
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
     "/api/v1/feedback": {
       "post": {
         "operationId": "FeedbackController_submitFeedback",
@@ -3350,6 +3516,507 @@
         "summary": "Submit user feedback",
         "tags": [
           "Feedback"
+        ]
+      }
+    },
+    "/api/v1/admin/auth/login": {
+      "post": {
+        "operationId": "AdminAuthController_login",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Admin login with email/password",
+        "tags": [
+          "Admin Auth"
+        ]
+      }
+    },
+    "/api/v1/admin/auth/me": {
+      "get": {
+        "operationId": "AdminAuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get admin profile",
+        "tags": [
+          "Admin Auth"
+        ]
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "AdminUsersController_listUsers",
+        "parameters": [
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tier",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all users with pagination, search, and filters",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "get": {
+        "operationId": "AdminUsersController_getUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get full user details",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{id}/tier": {
+      "patch": {
+        "operationId": "AdminUsersController_updateTier",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Manually update a user's tier",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
+    "/api/v1/admin/feedback": {
+      "get": {
+        "operationId": "AdminFeedbackController_listFeedback",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sentiment",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateTo",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all feedback with filters",
+        "tags": [
+          "Admin Feedback"
+        ]
+      }
+    },
+    "/api/v1/admin/feedback/{id}": {
+      "get": {
+        "operationId": "AdminFeedbackController_getFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get feedback details",
+        "tags": [
+          "Admin Feedback"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminFeedbackController_deleteFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a feedback entry",
+        "tags": [
+          "Admin Feedback"
+        ]
+      }
+    },
+    "/api/v1/admin/stats": {
+      "get": {
+        "operationId": "AdminStatsController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get dashboard stats",
+        "tags": [
+          "Admin Stats"
+        ]
+      }
+    },
+    "/api/v1/admin/beta/members": {
+      "get": {
+        "operationId": "AdminBetaController_listMembers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all beta members",
+        "tags": [
+          "Admin Beta"
+        ]
+      },
+      "post": {
+        "operationId": "AdminBetaController_addMember",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add an email to the beta program",
+        "tags": [
+          "Admin Beta"
+        ]
+      }
+    },
+    "/api/v1/admin/beta/members/{email}": {
+      "delete": {
+        "operationId": "AdminBetaController_removeMember",
+        "parameters": [
+          {
+            "name": "email",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove an email from the beta program",
+        "tags": [
+          "Admin Beta"
+        ]
+      }
+    },
+    "/api/v1/admin/beta/perks": {
+      "get": {
+        "operationId": "AdminBetaController_listPerks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all beta perks",
+        "tags": [
+          "Admin Beta"
+        ]
+      }
+    },
+    "/api/v1/admin/beta/perks/{key}": {
+      "put": {
+        "operationId": "AdminBetaController_updatePerk",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a beta perk",
+        "tags": [
+          "Admin Beta"
+        ]
+      }
+    },
+    "/api/v1/admin/beta/perks/seed": {
+      "post": {
+        "operationId": "AdminBetaController_seedPerks",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Seed default beta perks if they do not exist",
+        "tags": [
+          "Admin Beta"
+        ]
+      }
+    },
+    "/api/v1/admin/payments": {
+      "get": {
+        "operationId": "AdminPaymentsController_listPayments",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "method",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateTo",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all payments with filters",
+        "tags": [
+          "Admin Payments"
+        ]
+      }
+    },
+    "/api/v1/admin/payments/{id}": {
+      "get": {
+        "operationId": "AdminPaymentsController_getPayment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get payment details with status history",
+        "tags": [
+          "Admin Payments"
         ]
       }
     }
@@ -4010,6 +4677,89 @@
         },
         "required": [
           "email"
+        ]
+      },
+      "ChainrailsQuoteDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "The amount to transfer",
+            "example": "20"
+          },
+          "destinationChain": {
+            "type": "string",
+            "description": "The destination chain identifier",
+            "example": "BASE_MAINNET"
+          },
+          "tokenOut": {
+            "type": "string",
+            "description": "The token contract address on the destination chain",
+            "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          }
+        },
+        "required": [
+          "amount",
+          "destinationChain",
+          "tokenOut"
+        ]
+      },
+      "ChainrailsIntentDto": {
+        "type": "object",
+        "properties": {
+          "sender": {
+            "type": "string",
+            "description": "The sender wallet address",
+            "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+          },
+          "amount": {
+            "type": "string",
+            "description": "The amount to transfer (in smallest unit or human-readable)",
+            "example": "20000000"
+          },
+          "amountSymbol": {
+            "type": "string",
+            "description": "The symbol denomination of the amount (e.g. USDC). Defaults to USDC if omitted.",
+            "example": "USDC"
+          },
+          "tokenIn": {
+            "type": "string",
+            "description": "The input token contract address on the source chain",
+            "example": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+          },
+          "sourceChain": {
+            "type": "string",
+            "description": "The source chain identifier",
+            "example": "ARBITRUM_MAINNET"
+          },
+          "destinationChain": {
+            "type": "string",
+            "description": "The destination chain identifier",
+            "example": "BASE_MAINNET"
+          },
+          "recipient": {
+            "type": "string",
+            "description": "The recipient wallet address on the destination chain",
+            "example": "0xb79541Be080a59fdcE6C0b43219ba56c725eC65e"
+          },
+          "refundAddress": {
+            "type": "string",
+            "description": "The refund address if the intent fails or expires",
+            "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional metadata to attach to the intent"
+          }
+        },
+        "required": [
+          "sender",
+          "amount",
+          "tokenIn",
+          "sourceChain",
+          "destinationChain",
+          "recipient",
+          "refundAddress"
         ]
       },
       "CreateFeedbackDto": {

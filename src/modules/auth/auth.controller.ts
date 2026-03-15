@@ -162,9 +162,11 @@ export class AuthController {
   async getCurrentUser(@CurrentUser() user: AuthUser) {
     const unseenBetaPerks = await this.betaService.getUnseenPerks(user.id);
     const isBetaMember = await this.betaService.isBetaMember(user.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(user.id);
     return {
       ...user,
       beta_member: isBetaMember,
+      beta_discount: betaDiscount,
       unseen_beta_perks: unseenBetaPerks,
     };
   }
