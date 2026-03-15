@@ -74,4 +74,13 @@ export class PaymentRepository {
       include: { status_history: { orderBy: { timestamp: "asc" } } },
     });
   }
+
+  async findPendingByUserId(userId: string) {
+    return this.prisma.payment_transactions.findMany({
+      where: {
+        user_id: userId,
+        status: "PENDING",
+      },
+    });
+  }
 }

@@ -23,6 +23,19 @@ export class BetaService {
     email: string,
   ): Promise<void> {
     try {
+      const user = await this.userRepository.findById(userId);
+      const emailRecord = user?.emails?.find(
+        (e) => e.email.toLowerCase() === email.toLowerCase(),
+      );
+
+      // Beta perks only apply if the email is primary
+      if (!emailRecord || !emailRecord.is_primary) {
+        this.logger.debug(
+          `Skipping beta check for user ${userId} - email ${email} is not primary.`,
+        );
+        return;
+      }
+
       const member = await this.betaRepository.findMemberByEmail(email);
       if (!member || !member.is_active) return;
 
@@ -39,7 +52,7 @@ export class BetaService {
         // Activate the perk
         await this.activatePerk(userId, perk);
         this.logger.log(
-          `Activated beta perk "${perk.key}" for user ${userId} (email: ${email})`,
+          `Activated beta perk "${perk.key}" for user ${userId} (primary email: ${email})`,
         );
       }
     } catch (error) {
@@ -55,6 +68,9 @@ export class BetaService {
    * Get unseen perk notifications for a user.
    */
   async getUnseenPerks(userId: string) {
+    const isMember = await this.isBetaMember(userId);
+    if (!isMember) return [];
+
     const perks = await this.betaRepository.getUnseenPerks(userId);
     return perks.map((up) => ({
       id: up.perk_id,
@@ -82,18 +98,20 @@ export class BetaService {
   }
 
   /**
-   * Check if a user is a beta member (via any of their verified emails).
+   * Check if a user is a beta member (only via their primary verified email).
    */
   async isBetaMember(userId: string): Promise<boolean> {
     const user = await this.userRepository.findById(userId);
     if (!user?.emails) return false;
 
-    for (const email of user.emails) {
-      if (!email.is_verified) continue;
-      const member = await this.betaRepository.findMemberByEmail(email.email);
-      if (member?.is_active) return true;
-    }
-    return false;
+    // Find the primary verified email
+    const primaryEmail = user.emails.find((e) => e.is_primary && e.is_verified);
+    if (!primaryEmail) return false;
+
+    const member = await this.betaRepository.findMemberByEmail(
+      primaryEmail.email,
+    );
+    return !!(member && member.is_active);
   }
 
   /**
@@ -101,10 +119,14 @@ export class BetaService {
    */
   async getBetaStatus(userId: string) {
     const isMember = await this.isBetaMember(userId);
+    if (!isMember) {
+      return { is_beta_member: false, perks: [] };
+    }
+
     const userPerks = await this.betaRepository.getUserPerks(userId);
 
     return {
-      is_beta_member: isMember,
+      is_beta_member: true,
       perks: userPerks.map((up) => ({
         id: up.perk_id,
         key: up.perk.key,
@@ -137,12 +159,34 @@ export class BetaService {
     return { message: "Beta member removed" };
   }
 
-  async listBetaMembers() {
-    return this.betaRepository.listMembers();
+  async listBetaMembers(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const { members, total } = await this.betaRepository.listMembers({
+      skip,
+      take: limit,
+    });
+    return {
+      members,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async listPerks() {
-    return this.betaRepository.listPerks();
+  async listPerks(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const { perks, total } = await this.betaRepository.listPerks({
+      skip,
+      take: limit,
+    });
+    return {
+      perks,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async seedPerks() {
@@ -179,6 +223,10 @@ export class BetaService {
    * Get the discount percentage for a beta user, if the discounted_pro perk is active.
    */
   async getBetaDiscount(userId: string): Promise<number | null> {
+    // Only apply discount if the user is currently a beta member (checked via primary email)
+    const isMember = await this.isBetaMember(userId);
+    if (!isMember) return null;
+
     const userPerks = await this.betaRepository.getUserPerks(userId);
     const discountPerk = userPerks.find(
       (up) => up.perk.key === "discounted_pro",

@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  Logger,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Request, Response } from "express";

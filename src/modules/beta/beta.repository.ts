@@ -28,10 +28,18 @@ export class BetaRepository {
     });
   }
 
-  async listMembers() {
-    return this.prisma.beta_members.findMany({
-      orderBy: { added_at: "desc" },
-    });
+  async listMembers(params: { skip?: number; take?: number }) {
+    const { skip, take } = params;
+    const [members, total] = await Promise.all([
+      this.prisma.beta_members.findMany({
+        skip,
+        take,
+        orderBy: { added_at: "desc" },
+      }),
+      this.prisma.beta_members.count(),
+    ]);
+
+    return { members, total };
   }
 
   // --- Beta Perks ---
@@ -55,10 +63,18 @@ export class BetaRepository {
     });
   }
 
-  async listPerks() {
-    return this.prisma.beta_perks.findMany({
-      orderBy: { created_at: "asc" },
-    });
+  async listPerks(params: { skip?: number; take?: number }) {
+    const { skip, take } = params;
+    const [perks, total] = await Promise.all([
+      this.prisma.beta_perks.findMany({
+        skip,
+        take,
+        orderBy: { created_at: "asc" },
+      }),
+      this.prisma.beta_perks.count(),
+    ]);
+
+    return { perks, total };
   }
 
   async updatePerk(

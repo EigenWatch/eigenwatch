@@ -13,6 +13,7 @@ import { NonceRepository } from "./repositories/nonce.repository";
 import { EmailRepository } from "./repositories/email.repository";
 import { EmailTransportService } from "./email-transport.service";
 import { BetaModule } from "../beta/beta.module";
+import { PaymentsModule } from "../payments/payments.module";
 
 @Module({
   imports: [

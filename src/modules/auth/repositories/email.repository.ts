@@ -61,6 +61,12 @@ export class EmailRepository {
   }
 
   async setPrimary(emailId: string, userId: string) {
+    const emailToSet = await this.prisma.user_emails.findUnique({
+      where: { id: emailId },
+    });
+
+    if (!emailToSet) return;
+
     // Unset all primary flags for this user, then set the target one
     await this.prisma.$transaction([
       this.prisma.user_emails.updateMany({
@@ -72,6 +78,16 @@ export class EmailRepository {
         data: { is_primary: true },
       }),
     ]);
+  }
+
+  async findPrimaryEmailGlobally(email: string) {
+    return this.prisma.user_emails.findFirst({
+      where: {
+        email: email.toLowerCase(),
+        is_primary: true,
+      },
+      include: { user: true },
+    });
   }
 
   async findById(emailId: string, userId: string) {

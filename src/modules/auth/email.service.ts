@@ -1,4 +1,10 @@
-import { Injectable, Logger, HttpStatus, Inject, forwardRef } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { randomInt } from "crypto";
 import { EmailRepository } from "./repositories/email.repository";
 import { EmailTransportService } from "./email-transport.service";
@@ -28,10 +34,33 @@ export class EmailService {
     email: string,
     preferences?: { risk_alerts?: boolean; marketing?: boolean },
   ) {
+    // 1. Check if this email is already a primary email for another user
+    const existingPrimary =
+      await this.emailRepository.findPrimaryEmailGlobally(email);
+    if (existingPrimary && existingPrimary.user_id !== userId) {
+      throw new AppException(
+        ERROR_CODES.BAD_REQUEST,
+        "This email is already the primary identifier for another account.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    // 2. Check if this is the user's first email
+    const existingEmails = await this.emailRepository.findAllByUserId(userId);
+    const isFirstEmail = existingEmails.length === 0;
+
     const emailRecord = await this.emailRepository.addEmail(userId, email, {
       alerts_opt_in: preferences?.risk_alerts ?? true,
       marketing_opt_in: preferences?.marketing ?? false,
     });
+
+    // 3. If it's the first email, set it as primary automatically
+    if (isFirstEmail) {
+      await this.emailRepository.setPrimary(emailRecord.id, userId);
+      this.logger.log(
+        `First email added and set as primary: ${email} for user ${userId}`,
+      );
+    }
 
     // Generate and send verification code via Brevo (or SMTP fallback)
     await this.generateAndSendCode(email);
@@ -181,6 +210,18 @@ export class EmailService {
         ERROR_CODES.BAD_REQUEST,
         "Only verified emails can be set as primary",
         HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if this email is already a primary email for another user
+    const existingPrimary = await this.emailRepository.findPrimaryEmailGlobally(
+      emailRecord.email,
+    );
+    if (existingPrimary && existingPrimary.user_id !== userId) {
+      throw new AppException(
+        ERROR_CODES.BAD_REQUEST,
+        "This email is already the primary email for another account.",
+        HttpStatus.CONFLICT,
       );
     }
 

@@ -6,6 +6,7 @@ import { PaymentRepository } from "./payment.repository";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { ChainrailsIntentDto } from "./dto/chainrails-intent.dto";
+import { PricingService } from "./pricing.service";
 
 const CHAINRAILS_API_BASE = "https://api.chainrails.io/api/v1";
 const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
@@ -18,7 +19,12 @@ export class ChainrailsService {
     private config: AppConfigService,
     private userRepository: UserRepository,
     private paymentRepository: PaymentRepository,
+    private pricingService: PricingService,
   ) {}
+
+  private getApiUrl(): string {
+    return CHAINRAILS_API_BASE;
+  }
 
   async getQuotes(amount: string, destinationChain: string, tokenOut: string) {
     this.logger.debug(
@@ -71,7 +77,6 @@ export class ChainrailsService {
       );
     }
   }
-
   async createIntent(userId: string, payload: ChainrailsIntentDto) {
     this.logger.debug(
       `[createIntent] Triggered for user ${userId} with payload: ${JSON.stringify(payload)}`,
@@ -83,19 +88,23 @@ export class ChainrailsService {
       );
       this.logger.log(`Creating Chainrails intent for user ${userId}`);
 
+      // Calculate discounted price
+      const amountUsd = await this.pricingService.calculateProPrice(userId);
+
       const requestBody = {
         sender: payload.sender,
-        amount: payload.amount,
+        amount: amountUsd.toString(), // Use calculated price
         amountSymbol: payload.amountSymbol || "USDC",
         tokenIn: payload.tokenIn,
-        source_chain: payload.sourceChain,
-        destination_chain: payload.destinationChain,
-        recipient: payload.recipient,
-        refund_address: payload.refundAddress,
+        sourceChain: payload.sourceChain,
+        destinationChain: payload.destinationChain,
+        recipient: this.config.payments.adminWalletAddress,
+        refundAddress: payload.refundAddress || payload.sender,
         metadata: {
           ...payload.metadata,
           userId,
           source: "eigenwatch",
+          tier: "PRO",
         },
       };
 
@@ -133,17 +142,17 @@ export class ChainrailsService {
       );
 
       // Track the payment transaction
-      const amountUsd = parseFloat(this.config.payments.proPriceUsdc);
       await this.paymentRepository.createTransaction({
         user_id: userId,
         amount_usd: amountUsd,
         payment_method: "CHAINRAILS",
-        provider_ref: data.intent_id || data.intent_address,
+        provider_ref: data.id || data.intent_address,
         status: "PENDING",
         metadata: {
           source_chain: payload.sourceChain,
           destination_chain: payload.destinationChain,
           token_in: payload.tokenIn,
+          intent_id: data.id,
           intent_address: data.intent_address,
         },
       });

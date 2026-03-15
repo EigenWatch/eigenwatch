@@ -1,9 +1,21 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Public } from "src/core/decorators/public.decorator";
 import { SkipApiKey } from "src/core/decorators/skip-api-key.decorator";
 import { AdminAuthGuard } from "src/core/guards/admin-auth.guard";
 import { AdminRepository } from "../admin.repository";
+import { AdminToolsService } from "../admin-tools.service";
 
 @ApiTags("Admin Users")
 @Controller("admin/users")
@@ -12,10 +24,15 @@ import { AdminRepository } from "../admin.repository";
 @UseGuards(AdminAuthGuard)
 @ApiBearerAuth()
 export class AdminUsersController {
-  constructor(private readonly adminRepository: AdminRepository) {}
+  constructor(
+    private readonly adminRepository: AdminRepository,
+    private readonly adminTools: AdminToolsService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: "List all users with pagination, search, and filters" })
+  @ApiOperation({
+    summary: "List all users with pagination, search, and filters",
+  })
   async listUsers(
     @Query("page") page = "1",
     @Query("limit") limit = "20",
@@ -48,5 +65,14 @@ export class AdminUsersController {
   ) {
     const expiresAt = body.expires_at ? new Date(body.expires_at) : null;
     return this.adminRepository.updateUserTier(id, body.tier, expiresAt);
+  }
+
+  @Post("fix-primary-emails")
+  @ApiOperation({
+    summary: "Retroactively set primary emails for users who have none",
+  })
+  @HttpCode(HttpStatus.OK)
+  async fixPrimaryEmails() {
+    return this.adminTools.fixMissingPrimaryEmails();
   }
 }

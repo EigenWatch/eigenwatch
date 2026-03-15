@@ -15,7 +15,14 @@ export class AdminRepository {
     sort?: string;
     order?: "asc" | "desc";
   }) {
-    const { page, limit, search, tier, sort = "created_at", order = "desc" } = params;
+    const {
+      page,
+      limit,
+      search,
+      tier,
+      sort = "created_at",
+      order = "desc",
+    } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -26,7 +33,11 @@ export class AdminRepository {
       where.OR = [
         { wallet_address: { contains: search, mode: "insensitive" } },
         { display_name: { contains: search, mode: "insensitive" } },
-        { emails: { some: { email: { contains: search, mode: "insensitive" } } } },
+        {
+          emails: {
+            some: { email: { contains: search, mode: "insensitive" } },
+          },
+        },
       ];
     }
 
@@ -105,18 +116,32 @@ export class AdminRepository {
         skip,
         take: limit,
         orderBy: { created_at: "desc" },
-        include: { user: { select: { id: true, wallet_address: true, display_name: true } } },
+        include: {
+          user: {
+            select: { id: true, wallet_address: true, display_name: true },
+          },
+        },
       }),
       this.prisma.user_feedback.count({ where }),
     ]);
 
-    return { feedback, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      feedback,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findFeedbackById(id: string) {
     return this.prisma.user_feedback.findUnique({
       where: { id },
-      include: { user: { select: { id: true, wallet_address: true, display_name: true } } },
+      include: {
+        user: {
+          select: { id: true, wallet_address: true, display_name: true },
+        },
+      },
     });
   }
 
@@ -171,7 +196,9 @@ export class AdminRepository {
         where: { status: "CONFIRMED", created_at: { gte: monthAgo } },
         _sum: { amount_usd: true },
       }),
-      this.prisma.payment_transactions.count({ where: { status: "CONFIRMED" } }),
+      this.prisma.payment_transactions.count({
+        where: { status: "CONFIRMED" },
+      }),
       this.prisma.payment_transactions.count(),
     ]);
 
@@ -209,9 +236,10 @@ export class AdminRepository {
       payments: {
         total: totalPayments,
         confirmed: confirmedPayments,
-        conversion_rate: totalPayments > 0
-          ? Math.round((confirmedPayments / totalPayments) * 100)
-          : 0,
+        conversion_rate:
+          totalPayments > 0
+            ? Math.round((confirmedPayments / totalPayments) * 100)
+            : 0,
       },
     };
   }
@@ -245,21 +273,41 @@ export class AdminRepository {
         take: limit,
         orderBy: { created_at: "desc" },
         include: {
-          user: { select: { id: true, wallet_address: true, display_name: true } },
+          user: {
+            select: {
+              id: true,
+              wallet_address: true,
+              display_name: true,
+              emails: { where: { is_primary: true }, take: 1 },
+            },
+          },
           status_history: { orderBy: { timestamp: "asc" } },
         },
       }),
       this.prisma.payment_transactions.count({ where }),
     ]);
 
-    return { payments, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      payments,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findPaymentById(id: string) {
     return this.prisma.payment_transactions.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, wallet_address: true, display_name: true } },
+        user: {
+          select: {
+            id: true,
+            wallet_address: true,
+            display_name: true,
+            emails: { where: { is_primary: true }, take: 1 },
+          },
+        },
         status_history: { orderBy: { timestamp: "asc" } },
       },
     });

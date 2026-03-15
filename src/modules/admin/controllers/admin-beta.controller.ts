@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
@@ -24,9 +25,12 @@ export class AdminBetaController {
   constructor(private readonly betaService: BetaService) {}
 
   @Get("members")
-  @ApiOperation({ summary: "List all beta members" })
-  async listMembers() {
-    return this.betaService.listBetaMembers();
+  @ApiOperation({ summary: "List all beta members with pagination" })
+  async listMembers(@Query("page") page = "1", @Query("limit") limit = "20") {
+    return this.betaService.listBetaMembers(
+      parseInt(page, 10),
+      parseInt(limit, 10),
+    );
   }
 
   @Post("members")

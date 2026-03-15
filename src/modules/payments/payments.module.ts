@@ -5,16 +5,24 @@ import { TierManagementService } from "./tier-management.service";
 import { PaymentRepository } from "./payment.repository";
 import { PaymentsController } from "./payments.controller";
 import { AuthModule } from "../auth/auth.module";
+import { BetaModule } from "../beta/beta.module";
+import { PricingService } from "./pricing.service";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, BetaModule],
   providers: [
     PaymentsService,
     ChainrailsService,
+    PricingService,
     TierManagementService,
     PaymentRepository,
   ],
   controllers: [PaymentsController],
-  exports: [PaymentsService, ChainrailsService, PaymentRepository],
+  exports: [
+    PaymentsService,
+    ChainrailsService,
+    PricingService,
+    PaymentRepository,
+  ],
 })
 export class PaymentsModule {}

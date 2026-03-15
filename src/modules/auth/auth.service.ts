@@ -117,17 +117,21 @@ export class AuthService {
     // 6. Update last login
     await this.userRepository.updateLastLogin(user.id);
 
-    // 6b. Check beta perks for verified emails (catches users added to beta after registration)
-    const verifiedEmails = user.emails?.filter((e) => e.is_verified) ?? [];
-    for (const email of verifiedEmails) {
-      await this.betaService.checkAndActivateBetaPerks(user.id, email.email);
+    // 6b. Check beta perks ONLY for the primary email (if verified)
+    const primaryEmail = user.emails?.find(
+      (e) => e.is_primary && e.is_verified,
+    );
+    if (primaryEmail) {
+      await this.betaService.checkAndActivateBetaPerks(
+        user.id,
+        primaryEmail.email,
+      );
     }
 
     // Re-fetch user in case beta check upgraded their tier
-    const freshUser =
-      verifiedEmails.length > 0
-        ? ((await this.userRepository.findById(user.id)) ?? user)
-        : user;
+    const freshUser = primaryEmail
+      ? ((await this.userRepository.findById(user.id)) ?? user)
+      : user;
 
     // 7. Issue tokens
     const tokens = await this.issueTokenPair(
@@ -198,34 +202,51 @@ export class AuthService {
     await this.sessionRepository.revoke(session.id);
 
     const user = session.user;
+
+    // Check beta perks ONLY for the primary email (if verified)
+    const primaryEmail = user.emails?.find(
+      (e) => e.is_primary && e.is_verified,
+    );
+    if (primaryEmail) {
+      await this.betaService.checkAndActivateBetaPerks(
+        user.id,
+        primaryEmail.email,
+      );
+    }
+
+    // Re-fetch user in case beta check upgraded their tier
+    const freshUser = primaryEmail
+      ? ((await this.userRepository.findById(user.id)) ?? user)
+      : user;
+
     const tokens = await this.issueTokenPair(
-      user.id,
-      user.wallet_address,
-      user.tier as UserTier,
+      freshUser.id,
+      freshUser.wallet_address,
+      freshUser.tier as UserTier,
       ipAddress,
       deviceInfo,
     );
 
-    const unseenBetaPerks = await this.betaService.getUnseenPerks(user.id);
-    const isBetaMember = await this.betaService.isBetaMember(user.id);
-    const betaDiscount = await this.betaService.getBetaDiscount(user.id);
+    const unseenBetaPerks = await this.betaService.getUnseenPerks(freshUser.id);
+    const isBetaMember = await this.betaService.isBetaMember(freshUser.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(freshUser.id);
 
     const authUser: AuthUser = {
-      id: user.id,
-      wallet_address: user.wallet_address,
-      tier: user.tier as UserTier,
-      display_name: user.display_name,
-      email_verified: user.emails?.some((e) => e.is_verified) ?? false,
-      emails: user.emails?.map((e) => ({
+      id: freshUser.id,
+      wallet_address: freshUser.wallet_address,
+      tier: freshUser.tier as UserTier,
+      display_name: freshUser.display_name,
+      email_verified: freshUser.emails?.some((e) => e.is_verified) ?? false,
+      emails: freshUser.emails?.map((e) => ({
         id: e.id,
         email: e.email,
         is_verified: e.is_verified,
         is_primary: e.is_primary,
         created_at: e.created_at,
       })),
-      created_at: user.created_at.toISOString(),
-      tier_expires_at: user.tier_expires_at,
-      preferences: user.preferences,
+      created_at: freshUser.created_at.toISOString(),
+      tier_expires_at: freshUser.tier_expires_at,
+      preferences: freshUser.preferences,
       beta_member: isBetaMember,
       beta_discount: betaDiscount,
       unseen_beta_perks: unseenBetaPerks,

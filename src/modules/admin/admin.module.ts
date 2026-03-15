@@ -11,6 +11,7 @@ import { AdminFeedbackController } from "./controllers/admin-feedback.controller
 import { AdminStatsController } from "./controllers/admin-stats.controller";
 import { AdminBetaController } from "./controllers/admin-beta.controller";
 import { AdminPaymentsController } from "./controllers/admin-payments.controller";
+import { AdminToolsService } from "./admin-tools.service";
 import { BetaModule } from "../beta/beta.module";
 import { PaymentsModule } from "../payments/payments.module";
 
@@ -35,6 +36,11 @@ import { PaymentsModule } from "../payments/payments.module";
     AdminBetaController,
     AdminPaymentsController,
   ],
-  providers: [AdminAuthService, AdminJwtStrategy, AdminRepository],
+  providers: [
+    AdminAuthService,
+    AdminJwtStrategy,
+    AdminRepository,
+    AdminToolsService,
+  ],
 })
 export class AdminModule {}
