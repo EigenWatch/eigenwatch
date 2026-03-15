@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { AppConfigService } from "src/core/config/config.service";
@@ -12,6 +12,8 @@ import { SessionRepository } from "./repositories/session.repository";
 import { NonceRepository } from "./repositories/nonce.repository";
 import { EmailRepository } from "./repositories/email.repository";
 import { EmailTransportService } from "./email-transport.service";
+import { BetaModule } from "../beta/beta.module";
+import { PaymentsModule } from "../payments/payments.module";
 
 @Module({
   imports: [
@@ -23,6 +25,7 @@ import { EmailTransportService } from "./email-transport.service";
         signOptions: { expiresIn: "7d" },
       }),
     }),
+    forwardRef(() => BetaModule),
   ],
   controllers: [AuthController],
   providers: [

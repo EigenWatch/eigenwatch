@@ -29,6 +29,8 @@ model users {
   watchlist   user_watchlist[]
   nonces      auth_nonces[]
   feedback    user_feedback[]
+  beta_perks  user_beta_perks[]
+  payments    payment_transactions[]
 }
 
 model user_emails {
@@ -147,6 +149,89 @@ model user_feedback {
   @@index([user_id])
   @@index([type])
   @@index([created_at])
+}
+
+model beta_members {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  added_at  DateTime @default(now())
+  notes     String?
+  is_active Boolean  @default(true)
+
+  @@index([email])
+}
+
+model beta_perks {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String
+  is_active   Boolean  @default(true)
+  config      Json?
+  created_at  DateTime @default(now())
+
+  user_perks user_beta_perks[]
+}
+
+model user_beta_perks {
+  id                String   @id @default(uuid())
+  user_id           String
+  perk_id           String
+  activated_at      DateTime @default(now())
+  notification_seen Boolean  @default(false)
+  metadata          Json?
+
+  user users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  perk beta_perks @relation(fields: [perk_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, perk_id])
+  @@index([user_id])
+}
+
+model payment_transactions {
+  id             String        @id @default(uuid())
+  user_id        String
+  amount_usd     Decimal
+  payment_method PaymentMethod
+  provider_ref   String? // tx hash, chainrails intent id, etc.
+  status         PaymentStatus @default(PENDING)
+  tier_granted   UserTier      @default(PRO)
+  duration_days  Int           @default(30)
+  metadata       Json? // chain, token, extra context
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  user           users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  status_history payment_status_history[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model payment_status_history {
+  id             String        @id @default(uuid())
+  transaction_id String
+  from_status    PaymentStatus?
+  to_status      PaymentStatus
+  timestamp      DateTime      @default(now())
+  metadata       Json? // reason, error details, etc.
+
+  transaction payment_transactions @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+
+  @@index([transaction_id])
+}
+
+enum PaymentMethod {
+  CRYPTO_DIRECT
+  CHAINRAILS
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMING
+  CONFIRMED
+  FAILED
+  EXPIRED
 }
 
 enum FeedbackType {

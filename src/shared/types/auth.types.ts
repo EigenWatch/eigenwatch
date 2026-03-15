@@ -16,6 +16,14 @@ export interface UserEmail {
   created_at: Date;
 }
 
+export interface UnseenBetaPerk {
+  id: string;
+  key: string;
+  description: string;
+  activated_at: string;
+  metadata?: any;
+}
+
 export interface AuthUser {
   id: string;
   wallet_address: string;
@@ -27,6 +35,9 @@ export interface AuthUser {
   preferences?: any;
   created_at?: string;
   tier_expires_at?: Date | null;
+  beta_member?: boolean;
+  beta_discount?: number | null;
+  unseen_beta_perks?: UnseenBetaPerk[];
 }
 
 export interface JwtTokenPair {

@@ -57,17 +57,17 @@ export const env = cleanEnv(process.env, {
   }),
   PRO_PRICE_USDC: str({ default: "20" }),
 
-  // Paystack
-  PAYSTACK_SECRET_KEY: str({ default: "" }),
-  PAYSTACK_CALLBACK_URL: str({ default: "http://localhost:3000/settings" }),
-  PRO_PRICE_USD: str({ default: "20" }),
+  // Admin
+  ADMIN_EMAIL: str({ default: "" }),
+  ADMIN_PASSWORD: str({ default: "" }),
 
-  // Flutterwave
-  FLUTTERWAVE_SECRET_KEY: str({ default: "" }),
-  FLUTTERWAVE_PUBLIC_KEY: str({ default: "" }),
-  FLUTTERWAVE_PLAN_ID: str({ default: "" }),
-  FLUTTERWAVE_REDIRECT_URL: str({ default: "http://localhost:3000/settings" }),
-  FLUTTERWAVE_WEBHOOK_HASH: str({ default: "" }),
+  // Chainrails
+  CHAINRAILS_API_KEY: str({ default: "" }),
+  CHAINRAILS_WEBHOOK_SECRET: str({ default: "" }),
+  CHAINRAILS_ENVIRONMENT: str({
+    choices: ["live", "test"],
+    default: "test",
+  }),
 });
 
 export type Environment = typeof env;

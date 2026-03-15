@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  Logger,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Request, Response } from "express";
@@ -31,6 +32,7 @@ import {
   ResendVerificationDto,
 } from "./dto/email.dto";
 import { AuthUser } from "src/shared/types/auth.types";
+import { BetaService } from "../beta/beta.service";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -38,6 +40,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private emailService: EmailService,
+    private betaService: BetaService,
   ) {}
 
   @Post("challenge")
@@ -158,7 +161,15 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get current user information" })
   async getCurrentUser(@CurrentUser() user: AuthUser) {
-    return user;
+    const unseenBetaPerks = await this.betaService.getUnseenPerks(user.id);
+    const isBetaMember = await this.betaService.isBetaMember(user.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(user.id);
+    return {
+      ...user,
+      beta_member: isBetaMember,
+      beta_discount: betaDiscount,
+      unseen_beta_perks: unseenBetaPerks,
+    };
   }
 
   // ==================== EMAIL ====================
