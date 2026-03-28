@@ -8,9 +8,11 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "crypto";
 import { SignatureVerificationService } from "./signature-verification.service";
+import { DynamicJwtService } from "./dynamic-jwt.service";
 import { UserRepository } from "./repositories/user.repository";
 import { SessionRepository } from "./repositories/session.repository";
 import { NonceRepository } from "./repositories/nonce.repository";
+import { EmailRepository } from "./repositories/email.repository";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { AppConfigService } from "src/core/config/config.service";
@@ -29,9 +31,11 @@ export class AuthService {
   constructor(
     private jwtService: JwtService,
     private signatureVerification: SignatureVerificationService,
+    private dynamicJwtService: DynamicJwtService,
     private userRepository: UserRepository,
     private sessionRepository: SessionRepository,
     private nonceRepository: NonceRepository,
+    private emailRepository: EmailRepository,
     private config: AppConfigService,
     @Inject(forwardRef(() => BetaService))
     private betaService: BetaService,
@@ -170,6 +174,133 @@ export class AuthService {
 
     this.logger.log(
       `User authenticated: ${freshUser.wallet_address} (${isNew ? "new" : "returning"})`,
+    );
+
+    return {
+      tokens,
+      user: authUser,
+      is_new_user: isNew,
+    };
+  }
+
+  async authenticateWithDynamic(
+    token: string,
+    ipAddress?: string,
+    deviceInfo?: string,
+  ): Promise<{
+    tokens: JwtTokenPair;
+    user: AuthUser;
+    is_new_user: boolean;
+  }> {
+    // 1. Verify Dynamic JWT via JWKS
+    const payload = await this.dynamicJwtService.verifyToken(token);
+
+    // 2. Extract wallet address
+    const walletAddress = this.dynamicJwtService.extractWalletAddress(payload);
+    if (!walletAddress) {
+      throw new AppException(
+        ERROR_CODES.INVALID_WALLET_ADDRESS,
+        "No wallet address found in Dynamic token. Please connect a wallet.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 3. Handle email from Dynamic (email-based wallet creation)
+    const dynamicEmail = payload.email?.toLowerCase();
+    const emailVerifiedByDynamic = payload.email_verified === true;
+
+    if (dynamicEmail && emailVerifiedByDynamic) {
+      // Check if this email already belongs to any account
+      const existingEmail =
+        await this.emailRepository.findByEmailGlobally(dynamicEmail);
+      if (existingEmail && existingEmail.user.wallet_address !== walletAddress) {
+        throw new AppException(
+          ERROR_CODES.EMAIL_CONFLICT,
+          "This email is already linked to another account. Please sign in with the wallet associated with that account, or use a different email.",
+          HttpStatus.CONFLICT,
+        );
+      }
+    }
+
+    // 4. Find or create user
+    const { user, isNew } =
+      await this.userRepository.findOrCreate(walletAddress);
+
+    // 5. Auto-add verified email if provided by Dynamic and no conflict
+    if (dynamicEmail && emailVerifiedByDynamic) {
+      const userHasThisEmail = await this.emailRepository.findByUserIdAndEmail(
+        user.id,
+        dynamicEmail,
+      );
+      if (!userHasThisEmail) {
+        await this.emailRepository.addVerifiedPrimaryEmail(
+          user.id,
+          dynamicEmail,
+        );
+        this.logger.log(
+          `Auto-added Dynamic-verified email: ${dynamicEmail} for user ${user.wallet_address}`,
+        );
+      }
+    }
+
+    // 6. Update last login
+    await this.userRepository.updateLastLogin(user.id);
+
+    // 7. Check beta perks
+    const freshUserData = await this.userRepository.findById(user.id);
+    const freshUser = freshUserData ?? user;
+
+    const primaryEmail = freshUser.emails?.find(
+      (e) => e.is_primary && e.is_verified,
+    );
+    if (primaryEmail) {
+      await this.betaService.checkAndActivateBetaPerks(
+        freshUser.id,
+        primaryEmail.email,
+      );
+    }
+
+    // Re-fetch in case beta check upgraded tier
+    const finalUser = primaryEmail
+      ? ((await this.userRepository.findById(freshUser.id)) ?? freshUser)
+      : freshUser;
+
+    // 8. Issue tokens
+    const tokens = await this.issueTokenPair(
+      finalUser.id,
+      finalUser.wallet_address,
+      finalUser.tier as UserTier,
+      ipAddress,
+      deviceInfo,
+    );
+
+    // 9. Build auth user response
+    const unseenBetaPerks = await this.betaService.getUnseenPerks(finalUser.id);
+    const isBetaMember = await this.betaService.isBetaMember(finalUser.id);
+    const betaDiscount = await this.betaService.getBetaDiscount(finalUser.id);
+
+    const authUser: AuthUser = {
+      id: finalUser.id,
+      wallet_address: finalUser.wallet_address,
+      tier: finalUser.tier as UserTier,
+      display_name: finalUser.display_name,
+      email_verified: finalUser.emails?.some((e) => e.is_verified) ?? false,
+      emails: finalUser.emails?.map((e) => ({
+        id: e.id,
+        email: e.email,
+        is_verified: e.is_verified,
+        is_primary: e.is_primary,
+        created_at: e.created_at,
+      })),
+      created_at: finalUser.created_at.toISOString(),
+      tier_expires_at: finalUser.tier_expires_at,
+      beta_member: isBetaMember,
+      beta_discount: betaDiscount,
+      unseen_beta_perks: unseenBetaPerks,
+    };
+
+    this.logger.log(
+      `User authenticated via Dynamic: ${finalUser.wallet_address} (${isNew ? "new" : "returning"})`,
     );
 
     return {

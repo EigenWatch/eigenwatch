@@ -34,13 +34,13 @@ export class EmailService {
     email: string,
     preferences?: { risk_alerts?: boolean; marketing?: boolean },
   ) {
-    // 1. Check if this email is already a primary email for another user
-    const existingPrimary =
-      await this.emailRepository.findPrimaryEmailGlobally(email);
-    if (existingPrimary && existingPrimary.user_id !== userId) {
+    // 1. Check if this email is already used by another user
+    const existingEmail =
+      await this.emailRepository.findByEmailGlobally(email);
+    if (existingEmail && existingEmail.user_id !== userId) {
       throw new AppException(
-        ERROR_CODES.BAD_REQUEST,
-        "This email is already the primary identifier for another account.",
+        ERROR_CODES.EMAIL_CONFLICT,
+        "This email is already associated with another account.",
         HttpStatus.CONFLICT,
       );
     }
@@ -213,18 +213,7 @@ export class EmailService {
       );
     }
 
-    // Check if this email is already a primary email for another user
-    const existingPrimary = await this.emailRepository.findPrimaryEmailGlobally(
-      emailRecord.email,
-    );
-    if (existingPrimary && existingPrimary.user_id !== userId) {
-      throw new AppException(
-        ERROR_CODES.BAD_REQUEST,
-        "This email is already the primary email for another account.",
-        HttpStatus.CONFLICT,
-      );
-    }
-
+    // Global uniqueness is enforced at DB level, no extra check needed
     await this.emailRepository.setPrimary(emailId, userId);
     this.logger.log(
       `Primary email set: ${emailRecord.email} for user ${userId}`,

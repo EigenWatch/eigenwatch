@@ -94,6 +94,13 @@ export class AppConfigService {
     };
   }
 
+  get dynamic() {
+    return {
+      environmentId: env.DYNAMIC_ENVIRONMENT_ID,
+      jwksUrl: env.DYNAMIC_JWKS_URL,
+    };
+  }
+
   get payments() {
     return {
       baseRpcUrl: env.BASE_RPC_URL,

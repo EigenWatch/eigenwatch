@@ -7,6 +7,7 @@ import { AuthService } from "./auth.service";
 import { EmailService } from "./email.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { SignatureVerificationService } from "./signature-verification.service";
+import { DynamicJwtService } from "./dynamic-jwt.service";
 import { UserRepository } from "./repositories/user.repository";
 import { SessionRepository } from "./repositories/session.repository";
 import { NonceRepository } from "./repositories/nonce.repository";
@@ -33,6 +34,7 @@ import { PaymentsModule } from "../payments/payments.module";
     EmailService,
     EmailTransportService,
     SignatureVerificationService,
+    DynamicJwtService,
     JwtStrategy,
     UserRepository,
     SessionRepository,

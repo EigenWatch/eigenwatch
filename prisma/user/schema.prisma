@@ -47,8 +47,8 @@ model user_emails {
 
   user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, email])
-  @@index([email])
+  @@unique([email])
+  @@index([user_id])
 }
 
 model user_sessions {

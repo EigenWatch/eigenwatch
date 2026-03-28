@@ -51,6 +51,31 @@
         ]
       }
     },
+    "/api/v1/auth/dynamic": {
+      "post": {
+        "operationId": "AuthController_authenticateWithDynamic",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DynamicAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Authenticate with Dynamic.xyz JWT token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/refresh": {
       "post": {
         "operationId": "AuthController_refresh",
@@ -4002,6 +4027,18 @@
           "address",
           "signature",
           "nonce"
+        ]
+      },
+      "DynamicAuthDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT token from Dynamic.xyz SDK"
+          }
+        },
+        "required": [
+          "token"
         ]
       },
       "RefreshTokenDto": {

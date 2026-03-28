@@ -24,6 +24,7 @@ import { EmailService } from "./email.service";
 import {
   ChallengeRequestDto,
   VerifySignatureDto,
+  DynamicAuthDto,
   RefreshTokenDto,
 } from "./dto/auth.dto";
 import {
@@ -77,6 +78,37 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax", // Allows cookie to be sent on top-level navigation
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
+    });
+
+    return result;
+  }
+
+  @Post("dynamic")
+  @Public()
+  @SkipApiKey()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Authenticate with Dynamic.xyz JWT token" })
+  async authenticateWithDynamic(
+    @Body() body: DynamicAuthDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ipAddress = req.ip;
+    const deviceInfo = req.headers["user-agent"];
+
+    const result = await this.authService.authenticateWithDynamic(
+      body.token,
+      ipAddress,
+      deviceInfo,
+    );
+
+    // Set refresh token as HttpOnly cookie
+    res.cookie("refresh_token", result.tokens.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
