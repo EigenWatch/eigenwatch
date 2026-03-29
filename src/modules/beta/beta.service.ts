@@ -1,6 +1,8 @@
 import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { BetaRepository } from "./beta.repository";
 import { UserRepository } from "../auth/repositories/user.repository";
+import { EmailTransportService } from "../auth/email-transport.service";
+import { betaWelcomeEmail } from "../auth/templates/email-templates";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 import { defaultBetaPerks } from "./beta-perks.config";
@@ -12,6 +14,7 @@ export class BetaService {
   constructor(
     private readonly betaRepository: BetaRepository,
     private readonly userRepository: UserRepository,
+    private readonly emailTransport: EmailTransportService,
   ) {}
 
   /**
@@ -142,6 +145,30 @@ export class BetaService {
   async addBetaMember(email: string, notes?: string) {
     const member = await this.betaRepository.addMember(email, notes);
     this.logger.log(`Added beta member: ${email}`);
+
+    // Send branded welcome email with active perks
+    try {
+      const activePerks = await this.betaRepository.getActivePerks();
+      const perkList = activePerks.map((p) => ({
+        key: p.key,
+        description: p.description,
+      }));
+
+      const emailTemplate = betaWelcomeEmail(perkList);
+      await this.emailTransport.sendEmail({
+        to: email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+        text: emailTemplate.text,
+      });
+      this.logger.log(`Sent beta welcome email to: ${email}`);
+    } catch (error) {
+      // Don't fail the add operation if email fails
+      this.logger.error(
+        `Failed to send beta welcome email to ${email}: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+
     return member;
   }
 

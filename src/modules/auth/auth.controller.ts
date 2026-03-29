@@ -11,7 +11,6 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
-  Logger,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Request, Response } from "express";
@@ -21,12 +20,7 @@ import { RequireAuth } from "src/core/decorators/require-auth.decorator";
 import { SkipApiKey } from "src/core/decorators/skip-api-key.decorator";
 import { AuthService } from "./auth.service";
 import { EmailService } from "./email.service";
-import {
-  ChallengeRequestDto,
-  VerifySignatureDto,
-  DynamicAuthDto,
-  RefreshTokenDto,
-} from "./dto/auth.dto";
+import { DynamicAuthDto, RefreshTokenDto } from "./dto/auth.dto";
 import {
   AddEmailDto,
   VerifyEmailDto,
@@ -43,47 +37,6 @@ export class AuthController {
     private emailService: EmailService,
     private betaService: BetaService,
   ) {}
-
-  @Post("challenge")
-  @Public()
-  @SkipApiKey()
-  @ApiOperation({ summary: "Get challenge message for wallet signature" })
-  async getChallenge(@Body() body: ChallengeRequestDto) {
-    return this.authService.generateChallenge(body.address);
-  }
-
-  @Post("verify")
-  @Public()
-  @SkipApiKey()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Verify signature and issue JWT tokens" })
-  async verify(
-    @Body() body: VerifySignatureDto,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const ipAddress = req.ip;
-    const deviceInfo = req.headers["user-agent"];
-
-    const result = await this.authService.verifyAndAuthenticate(
-      body.address,
-      body.signature,
-      body.nonce,
-      ipAddress,
-      deviceInfo,
-    );
-
-    // Set refresh token as HttpOnly cookie
-    res.cookie("refresh_token", result.tokens.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax", // Allows cookie to be sent on top-level navigation
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: "/",
-    });
-
-    return result;
-  }
 
   @Post("dynamic")
   @Public()

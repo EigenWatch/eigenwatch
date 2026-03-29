@@ -6,18 +6,41 @@ import { AppConfigService } from "src/core/config/config.service";
 import { AppException } from "src/shared/errors/app.exceptions";
 import { ERROR_CODES } from "src/shared/constants/error-codes.constants";
 
+export interface DynamicVerifiedCredential {
+  id: string;
+  address?: string;
+  chain?: string;
+  email?: string;
+  format?: string;
+  wallet_name?: string;
+  wallet_provider?: string;
+  name_service?: Record<string, unknown>;
+  public_identifier?: string;
+  embedded_wallet_id?: string | null;
+  ref_id?: string;
+  signer_ref_id?: string;
+  oauth_provider?: string;
+  oauth_username?: string;
+  oauth_display_name?: string;
+  oauth_account_id?: string;
+}
+
 export interface DynamicJwtPayload {
   sub: string;
+  aud?: string;
   email?: string;
-  email_verified?: boolean;
   environment_id: string;
-  verified_credentials?: Array<{
+  alias?: string;
+  given_name?: string;
+  family_name?: string;
+  lists?: string[];
+  verified_credentials?: DynamicVerifiedCredential[];
+  verified_account?: {
+    id: string;
     address?: string;
     chain?: string;
-    format?: string;
     wallet_name?: string;
-    name_service?: Record<string, unknown>;
-  }>;
+  };
   iss: string;
   iat: number;
   exp: number;
@@ -114,14 +137,14 @@ export class DynamicJwtService {
 
   /**
    * Get the PEM public key for a given kid.
-   * If DYNAMIC_PUBLIC_KEY is set, uses that directly (no network call).
-   * Otherwise fetches from JWKS endpoint.
+   * Always fetches from JWKS endpoint for production reliability.
+   * Static key fallback is commented out — re-enable only for local dev if needed.
    */
   private async getPublicKey(kid: string): Promise<string> {
-    // Prefer static key — no network call needed
-    if (this.staticPublicKey) {
-      return this.staticPublicKey;
-    }
+    // Static key fallback — commented out so JWKS is always used in production
+    // if (this.staticPublicKey) {
+    //   return this.staticPublicKey;
+    // }
 
     const keys = await this.fetchJwks();
     const matchingKey = keys.find((k) => k.kid === kid);
@@ -248,5 +271,21 @@ export class DynamicJwtService {
       (cred) => cred.address && cred.format === "blockchain",
     );
     return walletCredential?.address?.toLowerCase() ?? null;
+  }
+
+  /**
+   * Extract the verified email from Dynamic JWT verified credentials.
+   * An email is considered verified if it appears as a credential with format "email".
+   */
+  extractVerifiedEmail(
+    payload: DynamicJwtPayload,
+  ): { email: string; verified: true } | null {
+    const emailCredential = payload.verified_credentials?.find(
+      (cred) => cred.format === "email" && cred.email,
+    );
+    if (emailCredential?.email) {
+      return { email: emailCredential.email.toLowerCase(), verified: true };
+    }
+    return null;
   }
 }

@@ -1,56 +1,6 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/api/v1/auth/challenge": {
-      "post": {
-        "operationId": "AuthController_getChallenge",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChallengeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Get challenge message for wallet signature",
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
-    "/api/v1/auth/verify": {
-      "post": {
-        "operationId": "AuthController_verify",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifySignatureDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Verify signature and issue JWT tokens",
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
     "/api/v1/auth/dynamic": {
       "post": {
         "operationId": "AuthController_authenticateWithDynamic",
@@ -3993,42 +3943,6 @@
       }
     },
     "schemas": {
-      "ChallengeRequestDto": {
-        "type": "object",
-        "properties": {
-          "address": {
-            "type": "string",
-            "description": "Ethereum wallet address",
-            "example": "0x1234567890abcdef1234567890abcdef12345678"
-          }
-        },
-        "required": [
-          "address"
-        ]
-      },
-      "VerifySignatureDto": {
-        "type": "object",
-        "properties": {
-          "address": {
-            "type": "string",
-            "description": "Ethereum wallet address",
-            "example": "0x1234567890abcdef1234567890abcdef12345678"
-          },
-          "signature": {
-            "type": "string",
-            "description": "Signed message signature"
-          },
-          "nonce": {
-            "type": "string",
-            "description": "Nonce from challenge response"
-          }
-        },
-        "required": [
-          "address",
-          "signature",
-          "nonce"
-        ]
-      },
       "DynamicAuthDto": {
         "type": "object",
         "properties": {
