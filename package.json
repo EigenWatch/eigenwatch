@@ -50,7 +50,6 @@
     "envalid": "^8.1.1",
     "ethers": "^6.15.0",
     "jsonwebtoken": "^9.0.3",
-    "jwks-rsa": "^4.0.1",
     "nestjs-pino": "^4.4.1",
     "nodemailer": "^8.0.1",
     "passport": "^0.7.0",
