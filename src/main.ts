@@ -5,8 +5,13 @@ import { AppModule } from "./app.module";
 import { LoggerService } from "./core/logging/logger.service";
 import { AppConfigService } from "./core/config/config.service";
 import cookieParser = require("cookie-parser");
+import * as dns from "dns";
 import * as fs from "fs";
 import * as path from "path";
+
+// Force IPv4-first DNS resolution — IPv6 is unreachable in some environments
+// causing ETIMEDOUT when connecting to external services (e.g. Dynamic JWKS)
+dns.setDefaultResultOrder("ipv4first");
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {

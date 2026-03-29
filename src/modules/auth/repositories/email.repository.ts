@@ -10,17 +10,27 @@ export class EmailRepository {
     email: string,
     preferences: { alerts_opt_in: boolean; marketing_opt_in: boolean },
   ) {
-    return this.prisma.user_emails.upsert({
-      where: {
-        user_id_email: { user_id: userId, email: email.toLowerCase() },
-      },
-      create: {
+    const normalizedEmail = email.toLowerCase();
+    const existing = await this.prisma.user_emails.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existing && existing.user_id === userId) {
+      // Update preferences for the user's own email
+      return this.prisma.user_emails.update({
+        where: { email: normalizedEmail },
+        data: {
+          alerts_opt_in: preferences.alerts_opt_in,
+          marketing_opt_in: preferences.marketing_opt_in,
+        },
+      });
+    }
+
+    // Create new email entry (will fail with unique constraint if taken by another user)
+    return this.prisma.user_emails.create({
+      data: {
         user_id: userId,
-        email: email.toLowerCase(),
-        alerts_opt_in: preferences.alerts_opt_in,
-        marketing_opt_in: preferences.marketing_opt_in,
-      },
-      update: {
+        email: normalizedEmail,
         alerts_opt_in: preferences.alerts_opt_in,
         marketing_opt_in: preferences.marketing_opt_in,
       },
@@ -28,9 +38,10 @@ export class EmailRepository {
   }
 
   async findByUserIdAndEmail(userId: string, email: string) {
-    return this.prisma.user_emails.findUnique({
+    return this.prisma.user_emails.findFirst({
       where: {
-        user_id_email: { user_id: userId, email: email.toLowerCase() },
+        user_id: userId,
+        email: email.toLowerCase(),
       },
     });
   }
@@ -43,10 +54,13 @@ export class EmailRepository {
   }
 
   async markVerified(userId: string, email: string) {
+    const record = await this.prisma.user_emails.findFirst({
+      where: { user_id: userId, email: email.toLowerCase() },
+    });
+    if (!record) return null;
+
     return this.prisma.user_emails.update({
-      where: {
-        user_id_email: { user_id: userId, email: email.toLowerCase() },
-      },
+      where: { id: record.id },
       data: {
         is_verified: true,
         verified_at: new Date(),
@@ -80,6 +94,15 @@ export class EmailRepository {
     ]);
   }
 
+  async findByEmailGlobally(email: string) {
+    return this.prisma.user_emails.findFirst({
+      where: {
+        email: email.toLowerCase(),
+      },
+      include: { user: true },
+    });
+  }
+
   async findPrimaryEmailGlobally(email: string) {
     return this.prisma.user_emails.findFirst({
       where: {
@@ -88,6 +111,25 @@ export class EmailRepository {
       },
       include: { user: true },
     });
+  }
+
+  async addVerifiedPrimaryEmail(userId: string, email: string) {
+    // Unset any existing primary flags, then add the new verified primary email
+    await this.prisma.$transaction([
+      this.prisma.user_emails.updateMany({
+        where: { user_id: userId },
+        data: { is_primary: false },
+      }),
+      this.prisma.user_emails.create({
+        data: {
+          user_id: userId,
+          email: email.toLowerCase(),
+          is_primary: true,
+          is_verified: true,
+          verified_at: new Date(),
+        },
+      }),
+    ]);
   }
 
   async findById(emailId: string, userId: string) {

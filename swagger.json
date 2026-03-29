@@ -1,41 +1,16 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/api/v1/auth/challenge": {
+    "/api/v1/auth/dynamic": {
       "post": {
-        "operationId": "AuthController_getChallenge",
+        "operationId": "AuthController_authenticateWithDynamic",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChallengeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Get challenge message for wallet signature",
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
-    "/api/v1/auth/verify": {
-      "post": {
-        "operationId": "AuthController_verify",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifySignatureDto"
+                "$ref": "#/components/schemas/DynamicAuthDto"
               }
             }
           }
@@ -45,7 +20,7 @@
             "description": ""
           }
         },
-        "summary": "Verify signature and issue JWT tokens",
+        "summary": "Authenticate with Dynamic.xyz JWT token",
         "tags": [
           "Auth"
         ]
@@ -3968,40 +3943,16 @@
       }
     },
     "schemas": {
-      "ChallengeRequestDto": {
+      "DynamicAuthDto": {
         "type": "object",
         "properties": {
-          "address": {
+          "token": {
             "type": "string",
-            "description": "Ethereum wallet address",
-            "example": "0x1234567890abcdef1234567890abcdef12345678"
+            "description": "JWT token from Dynamic.xyz SDK"
           }
         },
         "required": [
-          "address"
-        ]
-      },
-      "VerifySignatureDto": {
-        "type": "object",
-        "properties": {
-          "address": {
-            "type": "string",
-            "description": "Ethereum wallet address",
-            "example": "0x1234567890abcdef1234567890abcdef12345678"
-          },
-          "signature": {
-            "type": "string",
-            "description": "Signed message signature"
-          },
-          "nonce": {
-            "type": "string",
-            "description": "Nonce from challenge response"
-          }
-        },
-        "required": [
-          "address",
-          "signature",
-          "nonce"
+          "token"
         ]
       },
       "RefreshTokenDto": {

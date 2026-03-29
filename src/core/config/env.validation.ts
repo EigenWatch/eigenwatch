@@ -61,6 +61,10 @@ export const env = cleanEnv(process.env, {
   ADMIN_EMAIL: str({ default: "" }),
   ADMIN_PASSWORD: str({ default: "" }),
 
+  // Dynamic.xyz
+  DYNAMIC_ENVIRONMENT_ID: str({ default: "" }),
+  DYNAMIC_JWKS_URL: str({ default: "" }),
+
   // Chainrails
   CHAINRAILS_API_KEY: str({ default: "" }),
   CHAINRAILS_WEBHOOK_SECRET: str({ default: "" }),

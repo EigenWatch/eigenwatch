@@ -6,14 +6,12 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { EmailService } from "./email.service";
 import { JwtStrategy } from "./jwt.strategy";
-import { SignatureVerificationService } from "./signature-verification.service";
+import { DynamicJwtService } from "./dynamic-jwt.service";
 import { UserRepository } from "./repositories/user.repository";
 import { SessionRepository } from "./repositories/session.repository";
-import { NonceRepository } from "./repositories/nonce.repository";
 import { EmailRepository } from "./repositories/email.repository";
 import { EmailTransportService } from "./email-transport.service";
 import { BetaModule } from "../beta/beta.module";
-import { PaymentsModule } from "../payments/payments.module";
 
 @Module({
   imports: [
@@ -32,13 +30,12 @@ import { PaymentsModule } from "../payments/payments.module";
     AuthService,
     EmailService,
     EmailTransportService,
-    SignatureVerificationService,
+    DynamicJwtService,
     JwtStrategy,
     UserRepository,
     SessionRepository,
-    NonceRepository,
     EmailRepository,
   ],
-  exports: [AuthService, UserRepository],
+  exports: [AuthService, UserRepository, EmailTransportService],
 })
 export class AuthModule {}
