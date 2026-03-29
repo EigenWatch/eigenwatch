@@ -65,7 +65,6 @@ export class DynamicJwtService {
   private readonly logger = new Logger(DynamicJwtService.name);
   private readonly environmentId: string;
   private readonly jwksUrl: string;
-  private readonly staticPublicKey: string | null;
 
   // In-memory JWKS cache
   private cachedKeys: JwksKey[] | null = null;
@@ -75,16 +74,6 @@ export class DynamicJwtService {
   constructor(private config: AppConfigService) {
     this.environmentId = config.dynamic.environmentId;
     this.jwksUrl = config.dynamic.jwksUrl;
-
-    // .env files store PEM keys with literal \n — convert to real newlines
-    const rawKey = config.dynamic.publicKey;
-    this.staticPublicKey = rawKey ? rawKey.replace(/\\n/g, "\n") : null;
-
-    if (this.staticPublicKey) {
-      this.logger.log(
-        "Using static DYNAMIC_PUBLIC_KEY for JWT verification (no JWKS fetch needed).",
-      );
-    }
   }
 
   /**
@@ -141,11 +130,6 @@ export class DynamicJwtService {
    * Static key fallback is commented out — re-enable only for local dev if needed.
    */
   private async getPublicKey(kid: string): Promise<string> {
-    // Static key fallback — commented out so JWKS is always used in production
-    // if (this.staticPublicKey) {
-    //   return this.staticPublicKey;
-    // }
-
     const keys = await this.fetchJwks();
     const matchingKey = keys.find((k) => k.kid === kid);
 

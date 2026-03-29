@@ -64,7 +64,6 @@ export const env = cleanEnv(process.env, {
   // Dynamic.xyz
   DYNAMIC_ENVIRONMENT_ID: str({ default: "" }),
   DYNAMIC_JWKS_URL: str({ default: "" }),
-  DYNAMIC_PUBLIC_KEY: str({ default: "" }),
 
   // Chainrails
   CHAINRAILS_API_KEY: str({ default: "" }),

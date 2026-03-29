@@ -98,7 +98,6 @@ export class AppConfigService {
     return {
       environmentId: env.DYNAMIC_ENVIRONMENT_ID,
       jwksUrl: env.DYNAMIC_JWKS_URL,
-      publicKey: env.DYNAMIC_PUBLIC_KEY,
     };
   }
 
